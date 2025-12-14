@@ -16,9 +16,8 @@ using Backend_sec_dev.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 using System.Net;
-using System.Runtime.Intrinsics.Arm;
 using System.Security.Cryptography;
-using System.Runtime.Intrinsics.X86;
+using System.Diagnostics;
 
 namespace Backend_sec_dev.Application.Services
 {
@@ -59,7 +58,7 @@ namespace Backend_sec_dev.Application.Services
 
         }
 
-        public async Task<ApiResponse<RefreshTokenResult>> RefreshToken(string refreshToken)
+        public async Task<ApiResponse<RefreshTokenResult>> RefreshToken(string refreshToken, string ipAddress)
         {
             if (NullChecks.StringNullOrEmpty(refreshToken))
                 return ApiResponse<RefreshTokenResult>.Fail(HttpStatusCode.Conflict, "Refresh token not provided");
@@ -67,17 +66,48 @@ namespace Backend_sec_dev.Application.Services
 
             byte[] hashedRefreshToken = HashRefreshToken(refreshToken);
 
-            AuthSession? auth = await this.db.AuthSessions.FirstOrDefaultAsync(t => t.Hashed_Token == hashedRefreshToken && t.IsRevoked == false);
+            AuthSession? auth = await this.db.AuthSessions.FirstOrDefaultAsync(t => t.Hashed_Token == hashedRefreshToken);
             string jwt = string.Empty;
-            if (auth != null)
+            string newRefreshToken = Hasher.GenerateRefreshToken();
+
+            try
             {
-                User? u = await this.db.Users.FirstOrDefaultAsync(t => t.Id == auth.UserId);
-                if (u != null)
+                if (auth != null)
                 {
-                    jwt = jwtService.GenerateJwtToken(u);
+                    User? u = await this.db.Users.FirstOrDefaultAsync(t => t.Id == auth.UserId);
+                    if (u != null)
+                    {
+                        if (auth.IsRevoked)
+                        {
+                            List<AuthSession> sessionsToRevoke = new List<AuthSession>();
+                            sessionsToRevoke = await this.db.AuthSessions.Where(t => t.UserId == u.Id).ToListAsync();
+                            foreach (AuthSession session in sessionsToRevoke)
+                            {
+                                session.IsRevoked = true;
+                            }
+                            this.db.AuthSessions.UpdateRange(sessionsToRevoke);
+                     
+                            await this.db.SaveChangesAsync();
+                            return ApiResponse<RefreshTokenResult>.Fail(HttpStatusCode.Forbidden, "Token has been already used");
+                        }
+                        auth.IsRevoked = true;
+                        
+                        this.db.AuthSessions.Update(auth);
+                        jwt = jwtService.GenerateJwtToken(u);
+                        
+                        AuthSession newAuth = this.CreateAuthSession(u.Id, ipAddress, newRefreshToken);
+                        this.db.AuthSessions.Add(newAuth);
+                    }
                 }
+                await this.db.SaveChangesAsync();
             }
-            return ApiResponse<RefreshTokenResult>.Ok(new RefreshTokenResult { jwtToken = jwt }, HttpStatusCode.OK);
+            catch (Exception ex)
+            {
+                return ApiResponse<RefreshTokenResult>.Fail(HttpStatusCode.InternalServerError, SqlHelpers.SqlExceptionError(ex));
+
+            }
+
+            return ApiResponse<RefreshTokenResult>.Ok(new RefreshTokenResult { jwtToken = jwt, refreshToken = newRefreshToken }, HttpStatusCode.OK);
         }
 
         #region Login logic
@@ -109,6 +139,8 @@ namespace Backend_sec_dev.Application.Services
                 case PasswordVerificationResult.SuccessRehashNeeded:
                     res = ApiResponse<LoginResult>.Ok(new LoginResult { message = "Login with success, but you should redefine your password" }, HttpStatusCode.OK);
                     break;
+                default:
+                    return ApiResponse<LoginResult>.Fail(HttpStatusCode.Forbidden, "Login failed");
             }
 
 
@@ -116,30 +148,26 @@ namespace Backend_sec_dev.Application.Services
             {
                 u.LastLoginTime = DateTime.UtcNow;
                 this.db.Update(u);
-                AuthSession? userAuthSession = await this.db.AuthSessions.FirstOrDefaultAsync(t => t.UserId == u.Id && t.IsRevoked == false);
+                AuthSession? userAuthSession = await this.db.AuthSessions.FirstOrDefaultAsync(t => t.UserId == u.Id && t.IpAddress == ipAddress && t.IsRevoked == false);
 
                 string jwtToken = this.jwtService.GenerateJwtToken(u);
 
-                if (!NullChecks.StringNullOrEmpty(jwtToken) && res.Data != null && userAuthSession == null)
-                {
-                    res.Data.jwt = jwtToken;
-                    res!.Data!.refreshToken = Hasher.GenerateRefreshToken();
-                }
-                if(userAuthSession != null && res.Data != null)
-                {
-                    res.Data.jwt = jwtToken;
-                    res.Data.refreshToken = Convert.ToBase64String(userAuthSession.Hashed_Token);
-                }
+                res!.Data!.jwt = jwtToken;
+                string refreshToken = Hasher.GenerateRefreshToken();
 
                 if (userAuthSession == null)
                 {
-                    userAuthSession = this.CreateAuthSession(u.Id, ipAddress, res!.Data!.refreshToken);
-                    this.db.Add(userAuthSession);
+                    userAuthSession = this.CreateAuthSession(u.Id, ipAddress, refreshToken);
+                    this.db.AuthSessions.Add(userAuthSession);
+                    res!.Data!.refreshToken = refreshToken;
                 }
-                else if (userAuthSession != null && userAuthSession.ExpiresAt < DateTime.UtcNow)
+                else if (userAuthSession != null && userAuthSession.ExpiresAt > DateTime.UtcNow)
                 {
-                    userAuthSession = this.CreateAuthSession(u.Id, ipAddress, res!.Data!.refreshToken);
-                    this.db.Update(userAuthSession);
+                    userAuthSession.IsRevoked = true;
+                    this.db.AuthSessions.Update(userAuthSession);
+                    AuthSession newSession = CreateAuthSession(u.Id, ipAddress, refreshToken);
+                    this.db.AuthSessions.Add(newSession);
+                    res!.Data!.refreshToken = refreshToken;
                 }
                 await this.db.SaveChangesAsync();
             }
@@ -166,7 +194,7 @@ namespace Backend_sec_dev.Application.Services
 
         private byte[] HashRefreshToken(string refreshToken)
         {
-            byte[] hashedToken = null;
+            byte[] hashedToken;
             using (SHA256 cypher = SHA256.Create())
             {
                 byte[] converted = Convert.FromBase64String(refreshToken);
