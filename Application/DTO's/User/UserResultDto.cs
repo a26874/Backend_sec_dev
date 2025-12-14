@@ -1,5 +1,5 @@
 ﻿/*
-*	<copyright file="UserCreationResultDto">
+*	<copyright file="UserResultDto">
 *	</copyright>
 * 	<author>Marco Macedo</author>
 *	<contact>a26874@alunos.ipca.pt</contact>
@@ -7,12 +7,17 @@
 *	<description></description>
 **/
 
+using System.Text.Json.Serialization;
+
 namespace Backend_sec_dev.Application.DTO_s.UserCreation
 {
-    public class UserCreationResultDto
+    public class UserResultDto
     {
         #region ATTRIBUTES
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public required string email { get; set; }
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public bool? success { get; set; } 
         #endregion
 
     }

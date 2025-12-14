@@ -17,6 +17,7 @@ namespace Backend_sec_dev.Domain.Entities
         public DateTime ExpiresAt { get; set; }
         public bool IsRevoked { get; set; }
         public string IpAddress { get; set; }
+        public byte[] Hashed_Token { get; set; }
         // Navigation property
         public User User { get; set; } = null!;
         #endregion
@@ -26,7 +27,8 @@ namespace Backend_sec_dev.Domain.Entities
         #region CONSTRUTORES
         public AuthSession()
         {
-
+            this.CreatedAt = DateTime.UtcNow;
+            this.ExpiresAt = DateTime.UtcNow.AddDays(7);
         }
         #endregion
 

@@ -13,6 +13,8 @@ namespace Backend_sec_dev.Application.DTO_s.Login
     {
         #region ATTRIBUTES
         public string message { get; set; } = default!;
+        public string jwt { get; set; } = default!;
+        public string refreshToken { get; set; } = default!;
         #endregion
     }
 }

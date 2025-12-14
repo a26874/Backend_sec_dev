@@ -19,17 +19,27 @@ namespace Backend_sec_dev.API.Controllers
     public class IdentityController : ApiControllerBase
     {
         private IIdentityService identityService;
+        protected readonly IHttpContextAccessor httpContext;
 
-        public IdentityController(IIdentityService identityService)
+        public IdentityController(IIdentityService identityService, IHttpContextAccessor httpContext)
         {
             this.identityService = identityService;
+            this.httpContext = httpContext;
         }
 
         [Route("login")]
         [HttpPost]
         public async Task<ApiResponse<LoginResult>> Login(UserCredentialsDto userCredentialsDto)
         {
-            ApiResponse<LoginResult> res = await this.identityService.Login(userCredentialsDto);
+            ApiResponse<LoginResult> res = await this.identityService.Login(userCredentialsDto, this.httpContext.HttpContext!.Connection.RemoteIpAddress!.ToString());
+            return res;
+        }
+
+        [Route("refresh_token")]
+        [HttpPost]
+        public async Task<ApiResponse<RefreshTokenResult>> RefreshToken(RefreshTokenRequest r)
+        {
+            ApiResponse<RefreshTokenResult> res = await this.identityService.RefreshToken(r.refreshToken);
             return res;
         }
     }
