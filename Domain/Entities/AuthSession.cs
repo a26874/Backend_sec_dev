@@ -16,7 +16,7 @@ namespace Backend_sec_dev.Domain.Entities
         public DateTime CreatedAt { get; set; }
         public DateTime ExpiresAt { get; set; }
         public bool IsRevoked { get; set; }
-
+        public string IpAddress { get; set; }
         // Navigation property
         public User User { get; set; } = null!;
         #endregion

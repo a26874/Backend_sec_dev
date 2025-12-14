@@ -34,12 +34,6 @@ namespace Backend_sec_dev.API.Controllers
             return res;
         }
 
-        [Route("login")]
-        [HttpPost]
-        public async Task<ApiResponse<LoginResult>> Login(UserCredentialsDto userCredentialsDto)
-        {
-            ApiResponse<LoginResult> res = await this.userService.Login(userCredentialsDto);
-            return res;
-        }
+      
     }
 }
