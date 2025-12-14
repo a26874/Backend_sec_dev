@@ -31,7 +31,7 @@ namespace Backend_sec_dev.API.Controllers
         [HttpPost]
         public async Task<ApiResponse<LoginResult>> Login(UserCredentialsDto userCredentialsDto)
         {
-            ApiResponse<LoginResult> res = await this.identityService.Login(userCredentialsDto, this.httpContext.HttpContext!.Connection.RemoteIpAddress!.ToString());
+            ApiResponse<LoginResult> res = await this.identityService.Login(userCredentialsDto, HttpContext!.Connection.RemoteIpAddress!.ToString());
             return res;
         }
 
@@ -39,7 +39,7 @@ namespace Backend_sec_dev.API.Controllers
         [HttpPost]
         public async Task<ApiResponse<RefreshTokenResult>> RefreshToken(RefreshTokenRequest r)
         {
-            ApiResponse<RefreshTokenResult> res = await this.identityService.RefreshToken(r.refreshToken);
+            ApiResponse<RefreshTokenResult> res = await this.identityService.RefreshToken(r.refreshToken, HttpContext!.Connection.RemoteIpAddress!.ToString());
             return res;
         }
     }
