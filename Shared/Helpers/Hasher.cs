@@ -1,5 +1,5 @@
 ﻿/*
-*	<copyright file="PasswordHashing">
+*	<copyright file="Hasher">
 *	</copyright>
 * 	<author>Marco Macedo</author>
 *	<contact>a26874@alunos.ipca.pt</contact>
@@ -9,10 +9,11 @@
 
 using Backend_sec_dev.Application.DTO_s;
 using Microsoft.AspNetCore.Identity;
+using System.Security.Cryptography;
 
 namespace Backend_sec_dev.Shared.Helpers
 {
-    public static class PasswordHashing
+    public static class Hasher
     {
         public static string HashPassword(UserCredentialsDto userCreationDto)
         {
@@ -27,6 +28,11 @@ namespace Backend_sec_dev.Shared.Helpers
         {
             PasswordHasher<UserCredentialsDto> pHasher = new PasswordHasher<UserCredentialsDto>();
             return pHasher.VerifyHashedPassword(userCredentials, hashedPassword, userCredentials.password);
+        }
+
+        public static string GenerateRefreshToken()
+        {
+            return Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
         }
     }
 }

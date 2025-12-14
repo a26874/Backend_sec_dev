@@ -8,6 +8,7 @@
 **/
 
 using Backend_sec_dev.Application.DTO_s;
+using Backend_sec_dev.Application.DTO_s.User;
 using Backend_sec_dev.Application.DTO_s.UserCreation;
 using Backend_sec_dev.Domain.Entities;
 
@@ -15,7 +16,8 @@ namespace Backend_sec_dev.Application.Interfaces
 {
     public interface IUserService
     {
-        Task<ApiResponse<UserCreationResultDto>> CreateUser(UserCredentialsDto user);
-    
+        Task<ApiResponse<UserResultDto>> CreateUser(UserCredentialsDto user);
+        Task<ApiResponse<UserResultDto>> UpdateUserRole(UserUpdateDto user);
+        
     }
 }
