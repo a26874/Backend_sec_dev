@@ -16,9 +16,14 @@ namespace Backend_sec_dev.Shared.Helpers
             return t == null && t == string.Empty && t.ToCharArray().Length  == 0;
         }
 
-        public static bool ArrayNullOrEmpty(Array array)
+        public static bool ArrayNullOrEmpty<T>(Array array)
         {
             return array != null && array.Length == 0;
+        }
+
+        public static bool ListNullOrEmpty<T>(List<T> list)
+        {
+            return list != null && list.Count == 0; 
         }
     }
 }
