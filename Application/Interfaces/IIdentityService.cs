@@ -15,7 +15,8 @@ namespace Backend_sec_dev.Application.Interfaces
 {
     public interface IIdentityService
     {
-        Task<ApiResponse<LoginResult>> Login(UserCredentialsDto userCredentials, string ipAddress);
-        Task<ApiResponse<RefreshTokenResult>> RefreshToken(string refreshToken, string ipAddress);
+        Task<ApiResponse<LoginResult>> Login(UserCredentialsDto userCredentials);
+        Task<ApiResponse<LoginResult>> Logout(UserCredentialsDto userCredentials);
+        Task<ApiResponse<RefreshTokenResult>> RefreshToken(string refreshToken);
     }
 }

@@ -9,7 +9,7 @@
 
 namespace Backend_sec_dev.Application.DTO_s.Login
 {
-    public class LoginResult
+    public sealed record class LoginResult
     {
         #region ATTRIBUTES
         public string message { get; set; } = default!;
@@ -17,4 +17,5 @@ namespace Backend_sec_dev.Application.DTO_s.Login
         public string refreshToken { get; set; } = default!;
         #endregion
     }
+
 }
