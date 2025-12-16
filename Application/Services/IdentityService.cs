@@ -24,12 +24,12 @@ namespace Backend_sec_dev.Application.Services
     {
         protected readonly AppDbContext db;
         protected readonly IJwtService jwtService;
-        protected readonly IHttpContextAccessor httpContext;
+        protected readonly IHttpContextAccessor http;
         public IdentityService(AppDbContext db, IJwtService jwtService, IHttpContextAccessor httpContext)
         {
             this.db = db;
             this.jwtService = jwtService;
-            this.httpContext = httpContext;
+            this.http = httpContext;
         }
 
         #region public
@@ -101,7 +101,18 @@ namespace Backend_sec_dev.Application.Services
                         AuthSession newAuth = this.CreateAuthSession(u.Id, newRefreshToken);
                         this.db.AuthSessions.Add(newAuth);
 
-                        CreateCookies(jwt, newRefreshToken);
+                        Dictionary<string, string> keyCookies = new Dictionary<string, string>();
+                        keyCookies.Add("jwtToken", jwt);
+                        keyCookies.Add("refreshToken", refreshToken);
+                        CookieOptions co = new CookieOptions();
+                        co.HttpOnly = true;
+                        co.SameSite = SameSiteMode.Strict;
+                        co.Expires = DateTime.UtcNow.AddMinutes(5);
+                        co.Secure = true;
+                        foreach (KeyValuePair<string, string> cookie in keyCookies)
+                        {
+                            CreateCookies(cookie.Key, cookie.Value, co);
+                        }
 
                     }
                 }
@@ -122,7 +133,7 @@ namespace Backend_sec_dev.Application.Services
             User? u = await this.db.Users.FirstOrDefaultAsync(t => t.Email == userCredentials.email);
             if (u != null)
             {
-                List<AuthSession> authSessions = await this.db.AuthSessions.Where(t => t.UserId == u.Id && !t.IsRevoked ).ToListAsync();
+                List<AuthSession> authSessions = await this.db.AuthSessions.Where(t => t.UserId == u.Id && !t.IsRevoked).ToListAsync();
 
                 if (!NullChecks.ListNullOrEmpty(authSessions))
                 {
@@ -173,14 +184,32 @@ namespace Backend_sec_dev.Application.Services
             try
             {
                 string ipAddress = this.GetIpAddress();
+                Guid sessionId = this.GetSessionId();
                 u.LastLoginTime = DateTime.UtcNow;
                 this.db.Update(u);
-                AuthSession? userAuthSession = await this.db.AuthSessions.FirstOrDefaultAsync(t => t.UserId == u.Id && t.IpAddress == ipAddress && t.IsRevoked == false);
+                AuthSession? userAuthSession = await this.db.AuthSessions.FirstOrDefaultAsync(t => t.UserId == u.Id && t.IpAddress == ipAddress && t.SessionId == sessionId && t.IsRevoked == false);
 
+
+                CookieOptions co = new CookieOptions();
+                co.HttpOnly = true;
+                co.SameSite = SameSiteMode.Strict;
+                co.Expires = DateTime.UtcNow.AddMinutes(5);
+                co.Secure = true;
+                string jwtToken = this.jwtService.GenerateJwtToken(u);
+                res!.Data!.jwt = jwtToken;
                 string refreshToken = this.GenerateJwtTokenAux(u, res);
 
-                this.AuthSessionLogic(userAuthSession, u, refreshToken, res);
+                userAuthSession = this.AuthSessionLogic(userAuthSession, u, refreshToken, res);
 
+                Dictionary<string, string> keyCookies = new Dictionary<string, string>();
+                keyCookies.Add("jwtToken", jwtToken);
+                keyCookies.Add("refreshToken", refreshToken);
+                keyCookies.Add("Session-id", userAuthSession?.SessionId.ToString() ?? "");
+
+                foreach(KeyValuePair<string,string> keyValue in keyCookies)
+                {
+                    CreateCookies(keyValue.Key, keyValue.Value, co);
+                }
                 await this.db.SaveChangesAsync();
             }
             catch (Exception ex)
@@ -208,13 +237,14 @@ namespace Backend_sec_dev.Application.Services
             return res;
         }
 
-        private void AuthSessionLogic(AuthSession? userAuthSession, User u, string refreshToken, ApiResponse<LoginResult> res)
+        private AuthSession AuthSessionLogic(AuthSession? userAuthSession, User u, string refreshToken, ApiResponse<LoginResult> res)
         {
             if (userAuthSession == null)
             {
                 userAuthSession = this.CreateAuthSession(u.Id, refreshToken);
                 this.db.AuthSessions.Add(userAuthSession);
                 res!.Data!.refreshToken = refreshToken;
+                return userAuthSession;
             }
             else if (userAuthSession != null && userAuthSession.ExpiresAt > DateTime.UtcNow)
             {
@@ -223,42 +253,36 @@ namespace Backend_sec_dev.Application.Services
                 AuthSession newSession = CreateAuthSession(u.Id, refreshToken);
                 this.db.AuthSessions.Add(newSession);
                 res!.Data!.refreshToken = refreshToken;
+                return newSession;
             }
+            return null;
         }
 
         private string GenerateJwtTokenAux(User u, ApiResponse<LoginResult> res)
         {
-            string jwtToken = this.jwtService.GenerateJwtToken(u);
-
-            res!.Data!.jwt = jwtToken;
             string refreshToken = Hasher.GenerateRefreshToken();
-
-            CreateCookies(jwtToken, refreshToken);
 
             return refreshToken;
         }
-        private void CreateCookies(string jwtToken, string refreshToken)
+
+
+
+        private void CreateCookies(string cookieString, string cookieValue, CookieOptions co)
         {
-            CookieOptions co = new CookieOptions();
-            co.HttpOnly = true;
-            co.SameSite = SameSiteMode.Strict;
-            co.Expires = DateTime.UtcNow.AddMinutes(5);
-            co.Secure = true;
-            if (httpContext != null && httpContext.HttpContext != null)
+            if (http != null && http.HttpContext != null)
             {
-                httpContext.HttpContext.Response.Cookies.Append("jwtToken", jwtToken, co);
-                httpContext.HttpContext.Response.Cookies.Append("refreshToken", refreshToken, co);
+                http.HttpContext.Response.Cookies.Append($"{cookieString}", cookieValue, co);
             }
         }
 
         private AuthSession CreateAuthSession(Guid userId, string refreshToken)
         {
             string ipAddress = GetIpAddress();
-
+            string userAgent = GetUserAgentHeader();
             AuthSession authSession = new AuthSession();
             authSession.UserId = userId;
             authSession.IpAddress = ipAddress;
-
+            authSession.UserAgent = userAgent;
             byte[] data = HashRefreshToken(refreshToken);
 
             authSession.Hashed_Token = data;
@@ -278,14 +302,33 @@ namespace Backend_sec_dev.Application.Services
 
         private string GetIpAddress()
         {
-            string toReturn = string.Empty;
-            if (httpContext != null && httpContext.HttpContext != null && httpContext.HttpContext.Connection != null && httpContext.HttpContext.Connection.RemoteIpAddress != null)
+            string ipAddress = string.Empty;
+            if (http != null && http.HttpContext != null && http.HttpContext.Connection != null && http.HttpContext.Connection.RemoteIpAddress != null)
             {
-                toReturn = httpContext.HttpContext.Connection.RemoteIpAddress.ToString();
+                ipAddress = http.HttpContext.Connection.RemoteIpAddress.ToString();
             }
-            return toReturn;
+            return ipAddress;
         }
 
+        public string GetUserAgentHeader()
+        {
+            string userAgent = string.Empty;
+            if (http != null && http.HttpContext != null && http.HttpContext.Connection != null && http.HttpContext.Connection.RemoteIpAddress != null)
+            {
+                userAgent = http.HttpContext.Request.Headers.UserAgent.ToString();
+            }
+            return userAgent;
+        }
+
+        public Guid GetSessionId()
+        {
+            Guid guidToReturn = Guid.Empty;
+            if (http != null && http.HttpContext != null && http.HttpContext.Request != null && http.HttpContext.Request.Cookies != null && http.HttpContext.Request.Cookies.Count > 0 && http.HttpContext.Request.Cookies["Session-Id"] != null)
+            {
+                guidToReturn = new Guid(http.HttpContext.Request.Cookies["Session-Id"] ?? "");
+            }
+            return guidToReturn;
+        }
         private async Task<ApiResponse<LoginResult>> FailedLogin(User u)
         {
             if (u.FailedLoginAttempts + 1 >= User.MAX_ATTEMPTS_BEFORE_LOCK)

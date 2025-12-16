@@ -11,13 +11,15 @@ namespace Backend_sec_dev.Domain.Entities
     public class AuthSession
     {
         #region ATRIBUTOS
-        public Guid Id { get; set; }  
+        public Guid Id { get; set; }
         public Guid UserId { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime ExpiresAt { get; set; }
         public bool IsRevoked { get; set; }
-        public string IpAddress { get; set; }
-        public byte[] Hashed_Token { get; set; }
+        public string IpAddress { get; set; } = default!;
+        public byte[] Hashed_Token { get; set; } = default!;
+        public string UserAgent { get; set; } = default!;
+        public Guid SessionId { get; set; }
         // Navigation property
         public User User { get; set; } = null!;
         #endregion
@@ -29,6 +31,7 @@ namespace Backend_sec_dev.Domain.Entities
         {
             this.CreatedAt = DateTime.UtcNow;
             this.ExpiresAt = DateTime.UtcNow.AddDays(7);
+            this.SessionId = Guid.NewGuid();
         }
         #endregion
 
