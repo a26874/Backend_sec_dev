@@ -8,12 +8,18 @@ A comprehensive roadmap for building a secure, enterprise-grade ASP.NET Core bac
 ---
 
 ## Challenges so far
+
+### Phase 3
 Until the beggining of phase 3 everything is basic.
 
 In phase 3 JWT itself is basic too, what makes this phase difficult, is the architecture designs of the application. 
 Should we story only a AuthSession (so we can refresh tokens for the user), based on the IP and hashed_token or should we create multiple of them?
 
 In the end i chose to use the multiple of them, since it goes more with the roadmap objectives.
+
+### Phase 4
+Having a bit of confusion distinguishing what a middleware should do, since i in the day i wrote this, already validate some of the stuff i will do in the middleware.
+Probably will have to separate that logic so both can use them.
 ### 
 
 ## Roadmap

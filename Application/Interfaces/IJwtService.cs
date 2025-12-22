@@ -14,5 +14,6 @@ namespace Backend_sec_dev.Application.Interfaces
     public interface IJwtService
     {
         string GenerateJwtToken(User u);
+        bool validateToken(string jwtToken);
     }
 }
