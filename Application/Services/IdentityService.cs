@@ -34,6 +34,11 @@ namespace Backend_sec_dev.Application.Services
 
         #region public
 
+        /// <summary>
+        /// Logins
+        /// </summary>
+        /// <param name="userCredentialsDto"></param>
+        /// <returns></returns>
         public async Task<ApiResponse<LoginResult>> Login(UserCredentialsDto userCredentialsDto)
         {
             if (userCredentialsDto == null || NullChecks.StringNullOrEmpty(userCredentialsDto.email) || NullChecks.StringNullOrEmpty(userCredentialsDto.password))
@@ -61,6 +66,11 @@ namespace Backend_sec_dev.Application.Services
 
         }
 
+        /// <summary>
+        /// Refresh the token
+        /// </summary>
+        /// <param name="refreshToken"></param>
+        /// <returns></returns>
         public async Task<ApiResponse<RefreshTokenResult>> RefreshToken(string refreshToken)
         {
             if (NullChecks.StringNullOrEmpty(refreshToken))
@@ -69,7 +79,7 @@ namespace Backend_sec_dev.Application.Services
 
             byte[] hashedRefreshToken = HashRefreshToken(refreshToken);
 
-            AuthSession? auth = await this.db.AuthSessions.FirstOrDefaultAsync(t => t.Hashed_Token == hashedRefreshToken);
+            AuthSession? auth = await GetAuthSession(hashedRefreshToken);
             string jwt = string.Empty;
             string newRefreshToken = Hasher.GenerateRefreshToken();
 
@@ -80,18 +90,9 @@ namespace Backend_sec_dev.Application.Services
                     User? u = await this.db.Users.FirstOrDefaultAsync(t => t.Id == auth.UserId);
                     if (u != null)
                     {
-                        if (auth.IsRevoked)
+                        if (IsAuthSessionValid(auth))
                         {
-                            List<AuthSession> sessionsToRevoke = new List<AuthSession>();
-                            sessionsToRevoke = await this.db.AuthSessions.Where(t => t.UserId == u.Id).ToListAsync();
-                            foreach (AuthSession session in sessionsToRevoke)
-                            {
-                                session.IsRevoked = true;
-                            }
-                            this.db.AuthSessions.UpdateRange(sessionsToRevoke);
-
-                            await this.db.SaveChangesAsync();
-                            return ApiResponse<RefreshTokenResult>.Fail(HttpStatusCode.Forbidden, "Token has been already used");
+                            return await InvalidateAuthSession(u);
                         }
                         auth.IsRevoked = true;
 
@@ -101,18 +102,7 @@ namespace Backend_sec_dev.Application.Services
                         AuthSession newAuth = this.CreateAuthSession(u.Id, newRefreshToken);
                         this.db.AuthSessions.Add(newAuth);
 
-                        Dictionary<string, string> keyCookies = new Dictionary<string, string>();
-                        keyCookies.Add("jwtToken", jwt);
-                        keyCookies.Add("refreshToken", refreshToken);
-                        CookieOptions co = new CookieOptions();
-                        co.HttpOnly = true;
-                        co.SameSite = SameSiteMode.Strict;
-                        co.Expires = DateTime.UtcNow.AddMinutes(5);
-                        co.Secure = true;
-                        foreach (KeyValuePair<string, string> cookie in keyCookies)
-                        {
-                            CreateCookies(cookie.Key, cookie.Value, co);
-                        }
+                        this.CreateCookiesAux(jwt, refreshToken);
 
                     }
                 }
@@ -127,6 +117,11 @@ namespace Backend_sec_dev.Application.Services
             return ApiResponse<RefreshTokenResult>.Ok(new RefreshTokenResult { jwtToken = jwt, refreshToken = newRefreshToken }, HttpStatusCode.OK);
         }
 
+        /// <summary>
+        /// Logout
+        /// </summary>
+        /// <param name="userCredentials"></param>
+        /// <returns></returns>
         public async Task<ApiResponse<LoginResult>> Logout(UserCredentialsDto userCredentials)
         {
             ApiResponse<LoginResult> res = new ApiResponse<LoginResult>();
@@ -156,9 +151,109 @@ namespace Backend_sec_dev.Application.Services
 
             return res;
         }
+
+        //fix later
+        public async Task<AuthSession?> GetAuthSession(byte[] hashedRefreshToken)
+        {
+
+            return await this.db.AuthSessions.FirstOrDefaultAsync(t => t.Hashed_Token == hashedRefreshToken);
+        }
+        /// <summary>
+        /// Validates authsession
+        /// </summary>
+        /// <param name="auth"></param>
+        /// <returns></returns>
+        public bool IsAuthSessionValid(AuthSession auth)
+        {
+            return !auth.IsRevoked && auth.ExpiresAt > DateTime.UtcNow;
+        }
+
+        /// <summary>
+        /// Validates authsession
+        /// </summary>
+        /// <param name="auth"></param>
+        /// <param name="refreshToken"></param>
+        /// <returns></returns>
+        public bool IsAuthSessionTokenValid(AuthSession auth, string refreshToken)
+        {
+            byte[] hashToVerify = HashRefreshToken(refreshToken);
+            ReadOnlySpan<byte> clientHash = hashToVerify.AsSpan();
+            ReadOnlySpan<byte> bdHash = auth.Hashed_Token.AsSpan();
+            return clientHash.SequenceEqual(bdHash);
+        }
+
+        /// <summary>
+        /// Validates a token
+        /// </summary>
+        /// <param name="jwtToken"></param>
+        /// <returns></returns>
+        public bool isJwtTokenValid(string jwtToken)
+        {
+            if (NullChecks.StringNullOrEmpty(jwtToken)) return false;
+            return jwtService.validateToken(jwtToken);
+        }
+
+        /// <summary>
+        /// hashes a base64 token
+        /// </summary>
+        /// <param name="refreshToken"></param>
+        /// <returns></returns>
+        public byte[] HashRefreshToken(string refreshToken)
+        {
+            byte[] hashedToken;
+            using (SHA256 cypher = SHA256.Create())
+            {
+                byte[] converted = Convert.FromBase64String(refreshToken);
+                hashedToken = cypher.ComputeHash(converted);
+            }
+            return hashedToken;
+        }
         #endregion
 
         #region Login logic
+
+        private void CreateCookiesAux(string jwt, string refreshToken)
+        {
+
+            Dictionary<string, string> keyCookies = new Dictionary<string, string>();
+            keyCookies.Add("jwtToken", jwt);
+            keyCookies.Add("refreshToken", refreshToken);
+            CookieOptions co = new CookieOptions();
+            co.HttpOnly = true;
+            co.SameSite = SameSiteMode.Strict;
+            co.Expires = DateTime.UtcNow.AddMinutes(5);
+            co.Secure = true;
+            foreach (KeyValuePair<string, string> cookie in keyCookies)
+            {
+                CreateCookies(cookie.Key, cookie.Value, co);
+            }
+        }
+        
+
+        /// <summary>
+        /// Invalidate the authsessions
+        /// </summary>
+        /// <param name="u"></param>
+        /// <returns></returns>
+        private async Task<ApiResponse<RefreshTokenResult>> InvalidateAuthSession(User u)
+        {
+            List<AuthSession> sessionsToRevoke = new List<AuthSession>();
+            sessionsToRevoke = await this.db.AuthSessions.Where(t => t.UserId == u.Id).ToListAsync();
+            foreach (AuthSession session in sessionsToRevoke)
+            {
+                session.IsRevoked = true;
+            }
+            this.db.AuthSessions.UpdateRange(sessionsToRevoke);
+
+            await this.db.SaveChangesAsync();
+            return ApiResponse<RefreshTokenResult>.Fail(HttpStatusCode.Forbidden, "Token has been already used");
+        }
+        /// <summary>
+        /// Compares the password
+        /// </summary>
+        /// <param name="userCredentialsDto"></param>
+        /// <param name="u"></param>
+        /// <returns></returns>
         private async Task<ApiResponse<LoginResult>> ComparePassword(UserCredentialsDto userCredentialsDto, User u)
         {
             PasswordVerificationResult result = Hasher.ComparePassword(userCredentialsDto, u.PasswordHash);
@@ -176,6 +271,12 @@ namespace Backend_sec_dev.Application.Services
             }
         }
 
+        /// <summary>
+        /// The user has already logged in.
+        /// </summary>
+        /// <param name="u"></param>
+        /// <param name="result"></param>
+        /// <returns></returns>
         private async Task<ApiResponse<LoginResult>> SuccessfullLogin(User u, PasswordVerificationResult result)
         {
             ApiResponse<LoginResult> res = new ApiResponse<LoginResult>();
@@ -187,29 +288,18 @@ namespace Backend_sec_dev.Application.Services
                 Guid sessionId = this.GetSessionId();
                 u.LastLoginTime = DateTime.UtcNow;
                 this.db.Update(u);
+
+
                 AuthSession? userAuthSession = await this.db.AuthSessions.FirstOrDefaultAsync(t => t.UserId == u.Id && t.IpAddress == ipAddress && t.SessionId == sessionId && t.IsRevoked == false);
 
 
-                CookieOptions co = new CookieOptions();
-                co.HttpOnly = true;
-                co.SameSite = SameSiteMode.Strict;
-                co.Expires = DateTime.UtcNow.AddMinutes(5);
-                co.Secure = true;
                 string jwtToken = this.jwtService.GenerateJwtToken(u);
                 res!.Data!.jwt = jwtToken;
                 string refreshToken = this.GenerateJwtTokenAux(u, res);
 
                 userAuthSession = this.AuthSessionLogic(userAuthSession, u, refreshToken, res);
 
-                Dictionary<string, string> keyCookies = new Dictionary<string, string>();
-                keyCookies.Add("jwtToken", jwtToken);
-                keyCookies.Add("refreshToken", refreshToken);
-                keyCookies.Add("Session-id", userAuthSession?.SessionId.ToString() ?? "");
-
-                foreach(KeyValuePair<string,string> keyValue in keyCookies)
-                {
-                    CreateCookies(keyValue.Key, keyValue.Value, co);
-                }
+                CreateCookiesAux(jwtToken, refreshToken);
                 await this.db.SaveChangesAsync();
             }
             catch (Exception ex)
@@ -221,6 +311,12 @@ namespace Backend_sec_dev.Application.Services
 
         }
 
+        /// <summary>
+        /// Writes de result
+        /// </summary>
+        /// <param name="result"></param>
+        /// <param name="res"></param>
+        /// <returns></returns>
         private ApiResponse<LoginResult> TreatResultPassword(PasswordVerificationResult result, ApiResponse<LoginResult> res)
         {
             switch (result)
@@ -237,6 +333,14 @@ namespace Backend_sec_dev.Application.Services
             return res;
         }
 
+        /// <summary>
+        /// Both create a new session object based on conditions
+        /// </summary>
+        /// <param name="userAuthSession"></param>
+        /// <param name="u"></param>
+        /// <param name="refreshToken"></param>
+        /// <param name="res"></param>
+        /// <returns></returns>
         private AuthSession AuthSessionLogic(AuthSession? userAuthSession, User u, string refreshToken, ApiResponse<LoginResult> res)
         {
             if (userAuthSession == null)
@@ -246,7 +350,7 @@ namespace Backend_sec_dev.Application.Services
                 res!.Data!.refreshToken = refreshToken;
                 return userAuthSession;
             }
-            else if (userAuthSession != null && userAuthSession.ExpiresAt > DateTime.UtcNow)
+            else if (userAuthSession != null && IsAuthSessionValid(userAuthSession))
             {
                 userAuthSession.IsRevoked = true;
                 this.db.AuthSessions.Update(userAuthSession);
@@ -258,6 +362,13 @@ namespace Backend_sec_dev.Application.Services
             return null;
         }
 
+        /// <summary>
+        /// Generates jwt tokens.
+        /// </summary>
+        /// <param name="u"></param>
+        /// <param name="res"></param>
+        /// <returns></returns>
+
         private string GenerateJwtTokenAux(User u, ApiResponse<LoginResult> res)
         {
             string refreshToken = Hasher.GenerateRefreshToken();
@@ -267,6 +378,12 @@ namespace Backend_sec_dev.Application.Services
 
 
 
+        /// <summary>
+        /// Creates cookies
+        /// </summary>
+        /// <param name="cookieString"></param>
+        /// <param name="cookieValue"></param>
+        /// <param name="co"></param>
         private void CreateCookies(string cookieString, string cookieValue, CookieOptions co)
         {
             if (http != null && http.HttpContext != null)
@@ -275,6 +392,12 @@ namespace Backend_sec_dev.Application.Services
             }
         }
 
+        /// <summary>
+        /// Create a authsession object
+        /// </summary>
+        /// <param name="userId"></param>
+        /// <param name="refreshToken"></param>
+        /// <returns></returns>
         private AuthSession CreateAuthSession(Guid userId, string refreshToken)
         {
             string ipAddress = GetIpAddress();
@@ -289,17 +412,17 @@ namespace Backend_sec_dev.Application.Services
             return authSession;
         }
 
-        private byte[] HashRefreshToken(string refreshToken)
-        {
-            byte[] hashedToken;
-            using (SHA256 cypher = SHA256.Create())
-            {
-                byte[] converted = Convert.FromBase64String(refreshToken);
-                hashedToken = cypher.ComputeHash(converted);
-            }
-            return hashedToken;
-        }
+        /// <summary>
+        /// Cyper refresh tokens
+        /// </summary>
+        /// <param name="refreshToken"></param>
+        /// <returns></returns>
 
+
+        /// <summary>
+        /// Get ipaddress
+        /// </summary>
+        /// <returns></returns>
         private string GetIpAddress()
         {
             string ipAddress = string.Empty;
@@ -310,6 +433,10 @@ namespace Backend_sec_dev.Application.Services
             return ipAddress;
         }
 
+        /// <summary>
+        /// We obtain the agent header
+        /// </summary>
+        /// <returns></returns>
         public string GetUserAgentHeader()
         {
             string userAgent = string.Empty;
@@ -320,6 +447,10 @@ namespace Backend_sec_dev.Application.Services
             return userAgent;
         }
 
+        /// <summary>
+        /// We obtained the session id
+        /// </summary>
+        /// <returns></returns>
         public Guid GetSessionId()
         {
             Guid guidToReturn = Guid.Empty;
@@ -329,6 +460,12 @@ namespace Backend_sec_dev.Application.Services
             }
             return guidToReturn;
         }
+
+        /// <summary>
+        /// The login failed.
+        /// </summary>
+        /// <param name="u"></param>
+        /// <returns></returns>
         private async Task<ApiResponse<LoginResult>> FailedLogin(User u)
         {
             if (u.FailedLoginAttempts + 1 >= User.MAX_ATTEMPTS_BEFORE_LOCK)
@@ -351,6 +488,7 @@ namespace Backend_sec_dev.Application.Services
                 return ApiResponse<LoginResult>.Fail(HttpStatusCode.Forbidden, SqlHelpers.SqlExceptionError(ex));
             }
         }
+
         #endregion
     }
 }

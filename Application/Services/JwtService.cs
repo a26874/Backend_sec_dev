@@ -13,6 +13,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Security.Principal;
 using System.Text;
 
 namespace Backend_sec_dev.Application.Services
@@ -49,8 +50,32 @@ namespace Backend_sec_dev.Application.Services
 
 
             var token = tokenHandler.CreateToken(tokenDescriptor);
-            
-            tokenHandler.ValidateToken(tokenHandler.WriteToken(token), new TokenValidationParameters
+
+
+
+            return tokenHandler.WriteToken(token);
+        }
+
+        public bool validateToken(string token)
+        {
+            var tokenHandler = new JwtSecurityTokenHandler();
+            var validationParameters = this.GetTokenValidationParameters();
+            SecurityToken validatedToken;
+
+            try
+            {
+                IPrincipal principal = tokenHandler.ValidateToken(token, validationParameters, out validatedToken);
+                return true;
+            }
+            catch
+            {
+                throw;
+            }
+        }
+
+        private TokenValidationParameters GetTokenValidationParameters()
+        {
+            return new TokenValidationParameters
             {
                 ValidateIssuer = true,
                 ValidateAudience = true,
@@ -58,10 +83,8 @@ namespace Backend_sec_dev.Application.Services
                 ValidateIssuerSigningKey = true,
                 ValidIssuer = "Backend_sec_dev",
                 ValidAudience = "api",
-                IssuerSigningKey = new SymmetricSecurityKey(key)
-            }, out SecurityToken validatedToken);
-
-            return tokenHandler.WriteToken(token);
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_secret_token))
+            };
         }
     }
 }

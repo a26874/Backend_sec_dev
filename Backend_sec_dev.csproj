@@ -24,7 +24,6 @@
 
   <ItemGroup>
     <Folder Include="API\Filters\" />
-    <Folder Include="API\Middleware\" />
     <Folder Include="Domain\Enums\" />
     <Folder Include="Infrastructure\Logging\" />
     <Folder Include="Infrastructure\Security\" />

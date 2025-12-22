@@ -1,3 +1,4 @@
+using Backend_sec_dev.API.Middleware;
 using Backend_sec_dev.Application.Interfaces;
 using Backend_sec_dev.Application.Services;
 using Backend_sec_dev.Domain.Entities;
@@ -66,6 +67,7 @@ app.UseHttpsRedirection();
 
 app.UseSerilogRequestLogging();
 
+app.UseMiddleware<AuthenticationMiddleware>();
 app.UseAuthorization();
 
 app.MapControllers();

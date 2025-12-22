@@ -18,5 +18,11 @@ namespace Backend_sec_dev.Application.Interfaces
         Task<ApiResponse<LoginResult>> Login(UserCredentialsDto userCredentials);
         Task<ApiResponse<LoginResult>> Logout(UserCredentialsDto userCredentials);
         Task<ApiResponse<RefreshTokenResult>> RefreshToken(string refreshToken);
+        Task<AuthSession> GetAuthSession(byte[] token);
+        bool IsAuthSessionValid(AuthSession auth);
+        bool IsAuthSessionTokenValid(AuthSession auth, string refreshToken);
+        bool isJwtTokenValid(string jwtToken);
+        byte[] HashRefreshToken(string refreshToken);
+
     }
 }
