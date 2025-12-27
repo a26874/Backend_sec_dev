@@ -12,24 +12,25 @@ using Backend_sec_dev.Application.DTO_s;
 using Backend_sec_dev.Application.Interfaces;
 using Backend_sec_dev.Domain.Entities;
 using Backend_sec_dev.Shared.Helpers;
-using Backend_sec_dev.Infrastructure.Persistence;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 using System.Net;
 using System.Security.Cryptography;
+using System.IdentityModel.Tokens.Jwt;
+using Backend_sec_dev.API.Filters;
+using System.Security.Claims;
 
 namespace Backend_sec_dev.Application.Services
 {
     public class IdentityService : IIdentityService
     {
-        protected readonly AppDbContext db;
         protected readonly IJwtService jwtService;
         protected readonly IHttpContextAccessor http;
-        public IdentityService(AppDbContext db, IJwtService jwtService, IHttpContextAccessor httpContext)
+        protected readonly IDatabaseRepository databaseRepository;
+        public IdentityService(IJwtService jwtService, IHttpContextAccessor httpContext, IDatabaseRepository databaseRepository)
         {
-            this.db = db;
             this.jwtService = jwtService;
             this.http = httpContext;
+            this.databaseRepository = databaseRepository;
         }
 
         #region public
@@ -41,12 +42,13 @@ namespace Backend_sec_dev.Application.Services
         /// <returns></returns>
         public async Task<ApiResponse<LoginResult>> Login(UserCredentialsDto userCredentialsDto)
         {
+
             if (userCredentialsDto == null || NullChecks.StringNullOrEmpty(userCredentialsDto.email) || NullChecks.StringNullOrEmpty(userCredentialsDto.password))
                 return ApiResponse<LoginResult>.Fail(HttpStatusCode.Conflict, "Email or password not provided.");
 
             try
             {
-                User? u = await this.db.Users.FirstOrDefaultAsync(t => t.Email == userCredentialsDto.email);
+                User? u = await this.databaseRepository.FirstOrDefaultAsync<User>(t => t.Email == userCredentialsDto.email);
                 if (u != null)
                 {
                     if (u.IsLocked)
@@ -87,7 +89,7 @@ namespace Backend_sec_dev.Application.Services
             {
                 if (auth != null)
                 {
-                    User? u = await this.db.Users.FirstOrDefaultAsync(t => t.Id == auth.UserId);
+                    User? u = await this.databaseRepository.FirstOrDefaultAsync<User>(t => t.Id == auth.UserId);
                     if (u != null)
                     {
                         if (IsAuthSessionValid(auth))
@@ -96,17 +98,17 @@ namespace Backend_sec_dev.Application.Services
                         }
                         auth.IsRevoked = true;
 
-                        this.db.AuthSessions.Update(auth);
+                        this.databaseRepository.Update(auth);
                         jwt = jwtService.GenerateJwtToken(u);
 
                         AuthSession newAuth = this.CreateAuthSession(u.Id, newRefreshToken);
-                        this.db.AuthSessions.Add(newAuth);
+                        this.databaseRepository.Add(newAuth);
 
-                        this.CreateCookiesAux(jwt, refreshToken);
+                        this.CreateCookiesAux(jwt, refreshToken, newAuth.SessionId);
 
                     }
                 }
-                await this.db.SaveChangesAsync();
+                await this.databaseRepository.SaveChanges();
             }
             catch (Exception ex)
             {
@@ -125,10 +127,10 @@ namespace Backend_sec_dev.Application.Services
         public async Task<ApiResponse<LoginResult>> Logout(UserCredentialsDto userCredentials)
         {
             ApiResponse<LoginResult> res = new ApiResponse<LoginResult>();
-            User? u = await this.db.Users.FirstOrDefaultAsync(t => t.Email == userCredentials.email);
+            User? u = await this.databaseRepository.FirstOrDefaultAsync<User>(t => t.Email == userCredentials.email);
             if (u != null)
             {
-                List<AuthSession> authSessions = await this.db.AuthSessions.Where(t => t.UserId == u.Id && !t.IsRevoked).ToListAsync();
+                List<AuthSession> authSessions = await this.databaseRepository.Where<AuthSession>(t => t.UserId == u.Id && !t.IsRevoked);
 
                 if (!NullChecks.ListNullOrEmpty(authSessions))
                 {
@@ -136,11 +138,11 @@ namespace Backend_sec_dev.Application.Services
                     {
                         auth.IsRevoked = true;
                     }
-                    this.db.AuthSessions.UpdateRange(authSessions);
+                    this.databaseRepository.UpdateRange(authSessions);
                 }
                 try
                 {
-                    await this.db.SaveChangesAsync();
+                    await this.databaseRepository.SaveChanges();
                     res = new ApiResponse<LoginResult> { statusCode = HttpStatusCode.OK, Message = "Logout efetuado com sucesso" };
                 }
                 catch (Exception ex)
@@ -155,8 +157,7 @@ namespace Backend_sec_dev.Application.Services
         //fix later
         public async Task<AuthSession?> GetAuthSession(byte[] hashedRefreshToken)
         {
-
-            return await this.db.AuthSessions.FirstOrDefaultAsync(t => t.Hashed_Token == hashedRefreshToken);
+           return await this.databaseRepository.FirstOrDefaultAsync<AuthSession>(t => t.Hashed_Token ==  hashedRefreshToken);
         }
         /// <summary>
         /// Validates authsession
@@ -177,11 +178,9 @@ namespace Backend_sec_dev.Application.Services
         public bool IsAuthSessionTokenValid(AuthSession auth, string refreshToken)
         {
             byte[] hashToVerify = HashRefreshToken(refreshToken);
-            ReadOnlySpan<byte> clientHash = hashToVerify.AsSpan();
-            ReadOnlySpan<byte> bdHash = auth.Hashed_Token.AsSpan();
-            return clientHash.SequenceEqual(bdHash);
+            return Hasher.CompareHashes(hashToVerify, auth.Hashed_Token);
         }
-
+        
         /// <summary>
         /// Validates a token
         /// </summary>
@@ -191,6 +190,27 @@ namespace Backend_sec_dev.Application.Services
         {
             if (NullChecks.StringNullOrEmpty(jwtToken)) return false;
             return jwtService.validateToken(jwtToken);
+        }
+
+        public void DecodeJwtAndPopulateUser(string token)
+        {
+            JwtSecurityToken jwt = DecodeJwtToken(token);
+            Claim userId = jwt.Claims.FirstOrDefault(t => t.Type == CustomClaimTypes.Id)!;
+            Claim userRole = jwt.Claims.FirstOrDefault(t => t.Type == CustomClaimTypes.Role)!;
+            if (userId == null)
+            {
+                return;
+            }
+            List<Claim> claims =
+            [
+                new Claim(ClaimTypes.NameIdentifier, userId.Value),
+                new Claim(ClaimTypes.Role, userRole.Value),
+            ];
+
+            ClaimsIdentity claimsIdentity = new ClaimsIdentity(claims, "jwt");
+            ClaimsPrincipal principal = new ClaimsPrincipal(claimsIdentity);
+
+            http.HttpContext!.User = principal;
         }
 
         /// <summary>
@@ -208,16 +228,23 @@ namespace Backend_sec_dev.Application.Services
             }
             return hashedToken;
         }
+
+
+        public JwtSecurityToken DecodeJwtToken(string jwtToken)
+        {
+            return this.jwtService.DecodeJwt(jwtToken);
+        }
         #endregion
 
         #region Login logic
 
-        private void CreateCookiesAux(string jwt, string refreshToken)
+        private void CreateCookiesAux(string jwt, string refreshToken, Guid sessionId)
         {
-
+            string sessionIdGuid = sessionId.ToString();
             Dictionary<string, string> keyCookies = new Dictionary<string, string>();
             keyCookies.Add("jwtToken", jwt);
             keyCookies.Add("refreshToken", refreshToken);
+            keyCookies.Add("Session-Id", sessionIdGuid);
             CookieOptions co = new CookieOptions();
             co.HttpOnly = true;
             co.SameSite = SameSiteMode.Strict;
@@ -228,7 +255,7 @@ namespace Backend_sec_dev.Application.Services
                 CreateCookies(cookie.Key, cookie.Value, co);
             }
         }
-        
+
 
         /// <summary>
         /// Invalidate the authsessions
@@ -238,14 +265,14 @@ namespace Backend_sec_dev.Application.Services
         private async Task<ApiResponse<RefreshTokenResult>> InvalidateAuthSession(User u)
         {
             List<AuthSession> sessionsToRevoke = new List<AuthSession>();
-            sessionsToRevoke = await this.db.AuthSessions.Where(t => t.UserId == u.Id).ToListAsync();
+            sessionsToRevoke = await this.databaseRepository.Where<AuthSession>(t => t.UserId == u.Id);
             foreach (AuthSession session in sessionsToRevoke)
             {
                 session.IsRevoked = true;
             }
-            this.db.AuthSessions.UpdateRange(sessionsToRevoke);
+            this.databaseRepository.UpdateRange(sessionsToRevoke);
 
-            await this.db.SaveChangesAsync();
+            await this.databaseRepository.SaveChanges();
             return ApiResponse<RefreshTokenResult>.Fail(HttpStatusCode.Forbidden, "Token has been already used");
         }
         /// <summary>
@@ -287,10 +314,10 @@ namespace Backend_sec_dev.Application.Services
                 string ipAddress = this.GetIpAddress();
                 Guid sessionId = this.GetSessionId();
                 u.LastLoginTime = DateTime.UtcNow;
-                this.db.Update(u);
+                this.databaseRepository.Update(u);
 
 
-                AuthSession? userAuthSession = await this.db.AuthSessions.FirstOrDefaultAsync(t => t.UserId == u.Id && t.IpAddress == ipAddress && t.SessionId == sessionId && t.IsRevoked == false);
+                AuthSession? userAuthSession = await this.databaseRepository.FirstOrDefaultAsync<AuthSession>(t => t.UserId == u.Id && t.IpAddress == ipAddress && t.SessionId == sessionId && t.IsRevoked == false);
 
 
                 string jwtToken = this.jwtService.GenerateJwtToken(u);
@@ -299,8 +326,10 @@ namespace Backend_sec_dev.Application.Services
 
                 userAuthSession = this.AuthSessionLogic(userAuthSession, u, refreshToken, res);
 
-                CreateCookiesAux(jwtToken, refreshToken);
-                await this.db.SaveChangesAsync();
+                CreateCookiesAux(jwtToken, refreshToken, userAuthSession!.SessionId);
+                DecodeJwtAndPopulateUser(jwtToken);
+
+                await this.databaseRepository.SaveChanges();
             }
             catch (Exception ex)
             {
@@ -341,21 +370,21 @@ namespace Backend_sec_dev.Application.Services
         /// <param name="refreshToken"></param>
         /// <param name="res"></param>
         /// <returns></returns>
-        private AuthSession AuthSessionLogic(AuthSession? userAuthSession, User u, string refreshToken, ApiResponse<LoginResult> res)
+        private AuthSession? AuthSessionLogic(AuthSession? userAuthSession, User u, string refreshToken, ApiResponse<LoginResult> res)
         {
             if (userAuthSession == null)
             {
                 userAuthSession = this.CreateAuthSession(u.Id, refreshToken);
-                this.db.AuthSessions.Add(userAuthSession);
+                this.databaseRepository.Add(userAuthSession);
                 res!.Data!.refreshToken = refreshToken;
                 return userAuthSession;
             }
             else if (userAuthSession != null && IsAuthSessionValid(userAuthSession))
             {
                 userAuthSession.IsRevoked = true;
-                this.db.AuthSessions.Update(userAuthSession);
+                this.databaseRepository.Update(userAuthSession);
                 AuthSession newSession = CreateAuthSession(u.Id, refreshToken);
-                this.db.AuthSessions.Add(newSession);
+                this.databaseRepository.Add(newSession);
                 res!.Data!.refreshToken = refreshToken;
                 return newSession;
             }
@@ -479,8 +508,8 @@ namespace Backend_sec_dev.Application.Services
             }
             try
             {
-                this.db.Update(u);
-                await this.db.SaveChangesAsync();
+                this.databaseRepository.Update(u);
+                await this.databaseRepository.SaveChanges();
                 return ApiResponse<LoginResult>.Fail(HttpStatusCode.Forbidden, string.Format("Login failed, remaining tries before account blocking: {0}", User.MAX_ATTEMPTS_BEFORE_LOCK - u.FailedLoginAttempts));
             }
             catch (Exception ex)
@@ -488,6 +517,7 @@ namespace Backend_sec_dev.Application.Services
                 return ApiResponse<LoginResult>.Fail(HttpStatusCode.Forbidden, SqlHelpers.SqlExceptionError(ex));
             }
         }
+
 
         #endregion
     }

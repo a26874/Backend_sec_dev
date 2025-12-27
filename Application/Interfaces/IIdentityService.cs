@@ -10,6 +10,7 @@
 using Backend_sec_dev.Application.DTO_s;
 using Backend_sec_dev.Application.DTO_s.Login;
 using Backend_sec_dev.Domain.Entities;
+using System.IdentityModel.Tokens.Jwt;
 
 namespace Backend_sec_dev.Application.Interfaces
 {
@@ -18,11 +19,13 @@ namespace Backend_sec_dev.Application.Interfaces
         Task<ApiResponse<LoginResult>> Login(UserCredentialsDto userCredentials);
         Task<ApiResponse<LoginResult>> Logout(UserCredentialsDto userCredentials);
         Task<ApiResponse<RefreshTokenResult>> RefreshToken(string refreshToken);
-        Task<AuthSession> GetAuthSession(byte[] token);
+        Task<AuthSession?> GetAuthSession(byte[] token);
         bool IsAuthSessionValid(AuthSession auth);
         bool IsAuthSessionTokenValid(AuthSession auth, string refreshToken);
         bool isJwtTokenValid(string jwtToken);
         byte[] HashRefreshToken(string refreshToken);
+        JwtSecurityToken DecodeJwtToken(string jwtToken);
+        void DecodeJwtAndPopulateUser(string token);
 
     }
 }
