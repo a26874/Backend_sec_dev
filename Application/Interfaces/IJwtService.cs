@@ -8,6 +8,7 @@
 **/
 
 using Backend_sec_dev.Domain.Entities;
+using System.IdentityModel.Tokens.Jwt;
 
 namespace Backend_sec_dev.Application.Interfaces
 {
@@ -15,5 +16,6 @@ namespace Backend_sec_dev.Application.Interfaces
     {
         string GenerateJwtToken(User u);
         bool validateToken(string jwtToken);
+        JwtSecurityToken DecodeJwt(string jwtToken);
     }
 }

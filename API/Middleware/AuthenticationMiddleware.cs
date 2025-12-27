@@ -6,13 +6,10 @@
 *   <date>2025 12/21/2025 7:30:34 PM</date>
 *	<description></description>
 **/
-
 using Backend_sec_dev.Application.Interfaces;
-using Backend_sec_dev.Application.Services;
 using Backend_sec_dev.Domain.Entities;
-using Backend_sec_dev.Infrastructure.Persistence;
 using Backend_sec_dev.Shared.Helpers;
-using System.Net.Http.Headers;
+
 
 namespace Backend_sec_dev.API.Middleware
 {
@@ -33,6 +30,7 @@ namespace Backend_sec_dev.API.Middleware
                 await next(context);
                 return;
             }
+
             IIdentityService identityService = GetIdentityScope(context);
 
             bool isJwtValid = IsJwtTokenValid(context, identityService);
@@ -41,6 +39,7 @@ namespace Backend_sec_dev.API.Middleware
 
             if (isJwtValid && isRefresthTokenValid)
             {
+                identityService.DecodeJwtAndPopulateUser(GetJwtTokenFromCookies(context));
                 await next(context);
             }
             return;
@@ -48,6 +47,14 @@ namespace Backend_sec_dev.API.Middleware
         #endregion
 
         #region private
+
+        /// <summary>
+        /// Decodes the jwt, gets the claims that are needed (this case just userid and role) and attaches to user
+        /// </summary>
+        /// <param name="identityService"></param>
+        /// <param name="token"></param>
+        /// <param name="context"></param>
+
         private IIdentityService GetIdentityScope(HttpContext context)
         {
             IServiceScope scopes = context.RequestServices.CreateScope();
@@ -66,16 +73,29 @@ namespace Backend_sec_dev.API.Middleware
 
         private bool IsJwtTokenValid(HttpContext context, IIdentityService identityService)
         {
-            string jwtToken = context.Request.Cookies["jwtToken"]!;
+            string jwtToken = GetJwtTokenFromCookies(context);
             return identityService.isJwtTokenValid(jwtToken);
+        }
+
+        private string GetJwtTokenFromCookies(HttpContext context)
+        {
+            return context.Request.Cookies["jwtToken"]!;
         }
 
         private async Task<bool> IsRefreshTokenValid(HttpContext context, IIdentityService identityService)
         {
             string refreshToken = context.Request.Cookies["refreshToken"]!;
+            if (NullChecks.StringNullOrEmpty(refreshToken)) return false;
+
+            
             byte[] Hashed = identityService.HashRefreshToken(refreshToken);
             AuthSession? auth = await identityService.GetAuthSession(Hashed);
-            return identityService.IsAuthSessionValid(auth) && identityService.IsAuthSessionTokenValid(auth, refreshToken);
+            
+            
+            if (NullChecks.ObjectNullOrEmpty<AuthSession>(auth!)) return false;
+
+
+            return identityService.IsAuthSessionValid(auth!) && identityService.IsAuthSessionTokenValid(auth!, refreshToken);
         }
         #endregion
 

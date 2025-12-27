@@ -73,6 +73,13 @@ namespace Backend_sec_dev.Application.Services
             }
         }
 
+        public JwtSecurityToken DecodeJwt(string token)
+        {
+            JwtSecurityTokenHandler handler = new JwtSecurityTokenHandler();
+            JwtSecurityToken? jsonToken = handler.ReadJwtToken(token);
+            return jsonToken;
+        }
+
         private TokenValidationParameters GetTokenValidationParameters()
         {
             return new TokenValidationParameters
@@ -86,5 +93,6 @@ namespace Backend_sec_dev.Application.Services
                 IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_secret_token))
             };
         }
+
     }
 }

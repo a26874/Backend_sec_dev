@@ -13,10 +13,10 @@ namespace Backend_sec_dev.Shared.Helpers
     {
         public static bool StringNullOrEmpty(string t)
         {
-            return t == null && t == string.Empty && t.ToCharArray().Length  == 0;
+            return t == null || t == string.Empty || t.ToCharArray().Length  == 0;
         }
 
-        public static bool ArrayNullOrEmpty<T>(Array array)
+        public static bool ArrayNullOrEmpty<T>(Array? array)
         {
             return array != null && array.Length == 0;
         }
@@ -24,6 +24,16 @@ namespace Backend_sec_dev.Shared.Helpers
         public static bool ListNullOrEmpty<T>(List<T> list)
         {
             return list != null && list.Count == 0; 
+        }
+
+        public static bool ObjectNullOrEmpty<T>(object obj)
+        {
+            return obj == null;
+        }
+
+        public static bool GuidIsEmpty(Guid guid)
+        {
+            return guid == Guid.Empty;
         }
     }
 }

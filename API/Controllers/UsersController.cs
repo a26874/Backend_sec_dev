@@ -44,7 +44,5 @@ namespace Backend_sec_dev.API.Controllers
             ApiResponse<UserResultDto> res = await this.userService.UpdateUserRole(userUpdateDto);
             return res;
         }
-
-      
     }
 }

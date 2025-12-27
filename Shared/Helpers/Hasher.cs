@@ -34,5 +34,12 @@ namespace Backend_sec_dev.Shared.Helpers
         {
             return Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
         }
+
+        public static bool CompareHashes(byte[] hashA, byte[] hashB)
+        {
+            ReadOnlySpan<byte> firstHash= hashA.AsSpan();
+            ReadOnlySpan<byte> secondHash = hashB.AsSpan();
+            return firstHash.SequenceEqual(secondHash);
+        }
     }
 }

@@ -8,7 +8,6 @@
 **/
 
 using Backend_sec_dev.Application.DTO_s;
-using Backend_sec_dev.Application.DTO_s.Login;
 using Backend_sec_dev.Application.DTO_s.User;
 using Backend_sec_dev.Application.DTO_s.UserCreation;
 using Backend_sec_dev.Application.Interfaces;
