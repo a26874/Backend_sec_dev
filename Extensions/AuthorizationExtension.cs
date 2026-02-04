@@ -7,6 +7,8 @@
 *	<description></description>
 **/
 
+using Backend_sec_dev.Shared.Constants;
+
 namespace Backend_sec_dev.Extensions
 {
     public static class AuthorizationExtension
@@ -16,8 +18,8 @@ namespace Backend_sec_dev.Extensions
         {
             services.AddAuthorization(options =>
             {
-                options.AddPolicy("AdminPolicy", policy => policy.RequireRole("Admin"));
-                options.AddPolicy("UserPolicy", policy => policy.RequireRole("User"));
+                options.AddPolicy(RolesConstants.Admin, policy => policy.RequireRole(RolesConstants.Admin));
+                options.AddPolicy(RolesConstants.User, policy => policy.RequireRole(RolesConstants.User));
             });
             return services;
         }

@@ -14,6 +14,7 @@ namespace Backend_sec_dev.API.Filters
 {
     public class OwnershipFilter : IEndpointFilter
     {
+        //step 5 meh
         private readonly IOwnershipService ownershipService;
 
         public OwnershipFilter(IOwnershipService ownershipService)

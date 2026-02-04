@@ -143,7 +143,7 @@ namespace Backend_sec_dev.Application.Services
                 try
                 {
                     await this.databaseRepository.SaveChanges();
-                    res = new ApiResponse<LoginResult> { statusCode = HttpStatusCode.OK, Message = "Logout efetuado com sucesso" };
+                    res = new ApiResponse<LoginResult> {Success = true, statusCode = HttpStatusCode.OK, Message = "Logout efetuado com sucesso" };
                 }
                 catch (Exception ex)
                 {

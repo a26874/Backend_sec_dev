@@ -12,9 +12,12 @@ using Backend_sec_dev.Application.Interfaces;
 using Backend_sec_dev.Domain.Entities;
 using Backend_sec_dev.Shared.Constants;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Backend_sec_dev.API.Controllers
 {
+    [EnableRateLimiting(RolesConstants.User)]
+
     public class TransactionsController : ApiControllerBase
     {
         private readonly ITransactionService transactionService;
@@ -25,12 +28,18 @@ namespace Backend_sec_dev.API.Controllers
         }
 
         [Route("{id}")]
-        [ServiceFilter(typeof(OwnershipFilter))]
+        //[ServiceFilter(typeof(OwnershipFilter))] -> step 5
         [HttpGet]
         public async Task<Transaction?> GetTransactionById(Guid id)
         {
-            Transaction? res = await this.transactionService.GetById(id);
-            return res;
+            return await this.transactionService.GetById(id);
+        }
+
+        [Route("all")]
+        [HttpGet]
+        public async Task<List<Transaction>> GetTransactions()
+        {
+            return await this.transactionService.GetTransactions();
         }
     }
 }

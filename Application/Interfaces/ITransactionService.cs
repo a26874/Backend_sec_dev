@@ -13,5 +13,7 @@ namespace Backend_sec_dev.Application.Interfaces
     public interface ITransactionService
     {
         Task<Transaction?> GetById(Guid id);
+        Task<List<Transaction>> GetTransactions();
+
     }
 }
