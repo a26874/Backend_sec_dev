@@ -37,8 +37,11 @@ app.UseHttpsRedirection();
 
 app.UseSerilogRequestLogging();
 
+app.UseRateLimiter();
+
 app.UseMiddleware<AuthenticationMiddleware>();
 app.UseAuthorization();
+
 
 app.MapControllers();
 

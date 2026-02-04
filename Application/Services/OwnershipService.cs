@@ -14,6 +14,7 @@ namespace Backend_sec_dev.Application.Services
 {
     public class OwnershipService : IOwnershipService
     {
+        //step 5 meh
         public Task<bool> UserOwnsAsync(ClaimsPrincipal user, string resourceName, Guid resourceId)
         {
             return Task.FromResult(true);

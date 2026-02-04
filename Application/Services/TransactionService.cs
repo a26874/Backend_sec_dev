@@ -22,6 +22,11 @@ namespace Backend_sec_dev.Application.Services
             this.databaseRepository = databaseRepository;
         }
 
+        /// <summary>
+        /// Finds a transaction by id
+        /// </summary>
+        /// <param name="id"></param>
+        /// <returns></returns>
         public async Task<Transaction?> GetById(Guid id)
         {
             if (NullChecks.GuidIsEmpty(id))
@@ -29,6 +34,15 @@ namespace Backend_sec_dev.Application.Services
                 return null;
             }
             return await this.databaseRepository.GetById<Transaction>(id);
+        }
+
+        /// <summary>
+        /// Gets all transactions
+        /// </summary>
+        /// <returns></returns>
+        public async Task<List<Transaction>> GetTransactions()
+        {
+            return await this.databaseRepository.GetAll<Transaction>();
         }
     }
 }

@@ -22,6 +22,14 @@ Having a bit of confusion distinguishing what a middleware should do, since i in
 Probably will have to separate that logic so both can use them.
 ### 
 
+### Phase 5
+Since phase 5 was not making too much sense for the context of this project (at least for me) i didnt do it
+###
+
+### Phase 6
+Firstly implementing the rate limiter is rather simple, and useful. Something that i didnt know was that the pipeline of the request order actually is very important, my rate limiter was not "triggering" because i had "app.useratelimiter()" after my middleware.
+Then we just make some ratelimiter options with limits, queues etc and apply to the endpoints, or we use a global one.
+###
 ## Roadmap
 
 ### Phase 1 — Project Setup & Data Ingestion

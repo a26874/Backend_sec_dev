@@ -9,6 +9,7 @@
 using Backend_sec_dev.Application.Interfaces;
 using Backend_sec_dev.Domain.Entities;
 using Backend_sec_dev.Shared.Helpers;
+using System.Net;
 
 
 namespace Backend_sec_dev.API.Middleware
@@ -16,6 +17,10 @@ namespace Backend_sec_dev.API.Middleware
     public class AuthenticationMiddleware
     {
         private readonly RequestDelegate next;
+        /// <summary>
+        /// Continues the pipeline
+        /// </summary>
+        /// <param name="next"></param>
         public AuthenticationMiddleware(RequestDelegate next)
         {
             this.next = next;
@@ -24,12 +29,13 @@ namespace Backend_sec_dev.API.Middleware
         #region public
         public async Task InvokeAsync(HttpContext context)
         {
-            bool isAuthRequest = IsHttpContextAuthentication(context);
-            if (isAuthRequest)
+
+            if(IsNeededToBypassEndpoints(context))
             {
                 await next(context);
                 return;
             }
+           
 
             IIdentityService identityService = GetIdentityScope(context);
 
@@ -41,18 +47,27 @@ namespace Backend_sec_dev.API.Middleware
             {
                 identityService.DecodeJwtAndPopulateUser(GetJwtTokenFromCookies(context));
                 await next(context);
+                return;
             }
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
             return;
         }
         #endregion
 
         #region private
 
+        private bool IsNeededToBypassEndpoints(HttpContext context)
+        {
+            bool isAuthRequest = IsHttpContextAuthentication(context);
+            bool isUserCreation = IsHttpUserCreation(context);
+
+            return isAuthRequest || isUserCreation;
+        }
+
+
         /// <summary>
         /// Decodes the jwt, gets the claims that are needed (this case just userid and role) and attaches to user
         /// </summary>
-        /// <param name="identityService"></param>
-        /// <param name="token"></param>
         /// <param name="context"></param>
 
         private IIdentityService GetIdentityScope(HttpContext context)
@@ -61,15 +76,32 @@ namespace Backend_sec_dev.API.Middleware
             return scopes.ServiceProvider.GetService<IIdentityService>()!;
         }
 
+        /// <summary>
+        /// Checks if the endpoint is authentication and bypasses the validations
+        /// </summary>
+        /// <param name="context"></param>
+        /// <returns></returns>
         private bool IsHttpContextAuthentication(HttpContext context)
         {
-            string trimmedPath = context.Request.Path.Value!.Split("api/v1/")[1];
+            string trimmedPath = context.Request.Path.Value!.Split("api/v1/")[1].ToLower();
 
             bool isLogin = trimmedPath.StartsWith("identity/login");
             bool isLogout = trimmedPath.StartsWith("identity/logout");
             bool isRefreshToken = trimmedPath.StartsWith("identity/refreshToken");
             return isLogin || isLogout || isRefreshToken;
         }
+
+        /// <summary>
+        /// Checks if the endpoint is account/user creation and bypasses the validations
+        /// </summary>
+        /// <param name="context"></param>
+        /// <returns></returns>
+        private bool IsHttpUserCreation(HttpContext context)
+        {
+            string trimmedPath = context.Request.Path.Value!.Split("api/v1/")[1].ToLower();
+            return trimmedPath.StartsWith("users/create_account");
+        }
+
 
         private bool IsJwtTokenValid(HttpContext context, IIdentityService identityService)
         {
