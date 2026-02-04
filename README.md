@@ -1,5 +1,5 @@
 # Backend_sec_dev
-Backend project focused on login security, this project and roadmap where create with chatgpt, so i could learn more about backend development focused on security pourposes.
+Backend project focused on login security, this project roadmap was created with chatgpt, so i could learn more about backend development focused on security purposes.
 
 # ASP.NET Core Backend Security Project
 
