@@ -12,8 +12,11 @@ using Backend_sec_dev.Application.DTO_s.User;
 using Backend_sec_dev.Application.DTO_s.UserCreation;
 using Backend_sec_dev.Application.Interfaces;
 using Backend_sec_dev.Domain.Entities;
+using Backend_sec_dev.Domain.Validators;
 using Backend_sec_dev.Infrastructure.Persistence;
+using Backend_sec_dev.Shared.Constants;
 using Backend_sec_dev.Shared.Helpers;
+using FluentValidation.Results;
 using Microsoft.EntityFrameworkCore;
 using System.Net;
 
@@ -31,8 +34,16 @@ namespace Backend_sec_dev.Application.Services
         public async Task<ApiResponse<UserResultDto>> CreateUser(UserCredentialsDto userCredentialsDto)
         {
 
-            if (userCredentialsDto == null || NullChecks.StringNullOrEmpty(userCredentialsDto.email) || NullChecks.StringNullOrEmpty(userCredentialsDto.password))
-                return ApiResponse<UserResultDto>.Fail(HttpStatusCode.Forbidden, "Email and password should have values");
+
+            //Does not make sense anymore since we have fluentvalidation
+            //if (userCredentialsDto == null || NullChecks.StringNullOrEmpty(userCredentialsDto.email) || NullChecks.StringNullOrEmpty(userCredentialsDto.password))
+            //    return ApiResponse<UserResultDto>.Fail(HttpStatusCode.Forbidden, "Email and password should have values");
+            List<string> errors = new List<string>();
+            errors = this.ValidateUserCredentials(userCredentialsDto);
+            if (errors.Any())
+            {
+                return ApiResponse<UserResultDto>.FailListErrors(HttpStatusCode.UnprocessableEntity, errors);
+            }
 
             User u = new User();
             GetUserDatabaseResponse databaseUser = await VerifyIfUserExists(userCredentialsDto.email);
@@ -50,7 +61,7 @@ namespace Backend_sec_dev.Application.Services
             }
             catch (Exception ex)
             {
-                return ApiResponse<UserResultDto>.Fail(HttpStatusCode.InternalServerError ,SqlHelpers.SqlExceptionError(ex));
+                return ApiResponse<UserResultDto>.Fail(HttpStatusCode.InternalServerError, SqlHelpers.SqlExceptionError(ex));
             }
         }
 
@@ -106,6 +117,7 @@ namespace Backend_sec_dev.Application.Services
                 return false;
 
             u.PasswordHash = hashedPassword;
+            u.Role = RolesConstants.User;
             return true;
         }
 
@@ -114,13 +126,41 @@ namespace Backend_sec_dev.Application.Services
             this.db.Users.Add(u);
             var result = await this.db.SaveChangesAsync();
 
-            return ApiResponse<UserResultDto>.Ok(new UserResultDto { email = u.Email },HttpStatusCode.Created, "Account created with success! ");
+            return ApiResponse<UserResultDto>.Ok(new UserResultDto { email = u.Email }, HttpStatusCode.Created, "Account created with success! ");
         }
         private string HashingPassword(UserCredentialsDto userCreationDto, User u)
         {
             return Hasher.HashPassword(userCreationDto);
         }
 
+        /// <summary>
+        /// Uses the custom validator and returns any errors.
+        /// </summary>
+        /// <param name="userCredentialsDto"></param>
+        /// <returns></returns>
+        private List<string> ValidateUserCredentials(UserCredentialsDto userCredentialsDto)
+        {
+            List<string> errors = new List<string>();
+            UserCreationValidator validator = new UserCreationValidator();
+
+            try
+            {
+                ValidationResult validation = validator.Validate(userCredentialsDto);
+                if (!validation.IsValid)
+                {
+                    foreach (ValidationFailure error in validation.Errors)
+                    {
+                        errors.Add(string.Format("{0}: {1}", error.PropertyName, error.ErrorMessage));
+                    }
+                }
+                return errors;
+            }
+            catch
+            {
+                throw;
+            }
+
+        }
 
         #endregion
 
