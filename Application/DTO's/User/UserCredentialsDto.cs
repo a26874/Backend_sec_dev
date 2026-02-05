@@ -14,6 +14,7 @@ namespace Backend_sec_dev.Application.DTO_s
         #region ATTRIBUTES
         public required string email { get; set; }
         public required string password { get; set; }
+        public string? role { get; set; }
         #endregion
 
     }
