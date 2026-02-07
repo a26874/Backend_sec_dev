@@ -29,6 +29,12 @@ Since phase 5 was not making too much sense for the context of this project (at 
 ### Phase 6
 Firstly implementing the rate limiter is rather simple, and useful. Something that i didnt know was that the pipeline of the request order actually is very important, my rate limiter was not "triggering" because i had "app.useratelimiter()" after my middleware.
 Then we just make some ratelimiter options with limits, queues etc and apply to the endpoints, or we use a global one.
+
+Implementing the FluentValidation library is also something simple, we just have to make a validator for the class we want and set rules fort he properties, then we create a customvalidator and validate that class.
+
+For GlobalExceptionHandling i saw this video: https://www.youtube.com/watch?v=rXdsm9R5TR0
+Which explained well what a globalexceptionhandler has to do, this also prevents the next step which is the leak of sensitive information.
+
 ###
 ## Roadmap
 

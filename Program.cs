@@ -2,7 +2,6 @@ using Backend_sec_dev.API.Middleware;
 using Backend_sec_dev.Application.Services;
 using Serilog;
 using Backend_sec_dev.Extensions;
-using Backend_sec_dev.API.Filters;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -33,6 +32,8 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+app.UseMiddleware<GlobalExceptionMiddleware>();
+
 app.UseHttpsRedirection();
 
 app.UseSerilogRequestLogging();
@@ -40,7 +41,9 @@ app.UseSerilogRequestLogging();
 app.UseRateLimiter();
 
 app.UseMiddleware<AuthenticationMiddleware>();
+
 app.UseAuthorization();
+
 
 
 app.MapControllers();
