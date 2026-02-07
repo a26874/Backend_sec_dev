@@ -9,33 +9,25 @@
 using Backend_sec_dev.Application.Interfaces;
 using Backend_sec_dev.Domain.Entities;
 using Backend_sec_dev.Shared.Helpers;
-using System.Net;
-
 
 namespace Backend_sec_dev.API.Middleware
 {
-    public class AuthenticationMiddleware
+    internal sealed class AuthenticationMiddleware(RequestDelegate next, ILogger<AuthenticationMiddleware> logger, IHostEnvironment env)
     {
-        private readonly RequestDelegate next;
-        /// <summary>
-        /// Continues the pipeline
-        /// </summary>
-        /// <param name="next"></param>
-        public AuthenticationMiddleware(RequestDelegate next)
-        {
-            this.next = next;
-        }
-
         #region public
         public async Task InvokeAsync(HttpContext context)
         {
 
-            if(IsNeededToBypassEndpoints(context))
+            if (IsNeededToBypassEndpoints(context))
             {
                 await next(context);
+                if (env.IsDevelopment())
+                {
+                    logger.Log(LogLevel.Information, "Needed to bypass authmiddlware cause of registration endpoint");
+                }
                 return;
             }
-           
+
 
             IIdentityService identityService = GetIdentityScope(context);
 
@@ -119,11 +111,11 @@ namespace Backend_sec_dev.API.Middleware
             string refreshToken = context.Request.Cookies["refreshToken"]!;
             if (NullChecks.StringNullOrEmpty(refreshToken)) return false;
 
-            
+
             byte[] Hashed = identityService.HashRefreshToken(refreshToken);
             AuthSession? auth = await identityService.GetAuthSession(Hashed);
-            
-            
+
+
             if (NullChecks.ObjectNullOrEmpty<AuthSession>(auth!)) return false;
 
 

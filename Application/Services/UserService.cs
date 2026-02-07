@@ -34,10 +34,6 @@ namespace Backend_sec_dev.Application.Services
         public async Task<ApiResponse<UserResultDto>> CreateUser(UserCredentialsDto userCredentialsDto)
         {
 
-
-            //Does not make sense anymore since we have fluentvalidation
-            //if (userCredentialsDto == null || NullChecks.StringNullOrEmpty(userCredentialsDto.email) || NullChecks.StringNullOrEmpty(userCredentialsDto.password))
-            //    return ApiResponse<UserResultDto>.Fail(HttpStatusCode.Forbidden, "Email and password should have values");
             List<string> errors = new List<string>();
             errors = this.ValidateUserCredentials(userCredentialsDto);
             if (errors.Any())
