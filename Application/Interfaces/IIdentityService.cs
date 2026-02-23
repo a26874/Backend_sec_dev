@@ -21,9 +21,8 @@ namespace Backend_sec_dev.Application.Interfaces
         Task<ApiResponse<RefreshTokenResult>> RefreshToken(string refreshToken);
         Task<AuthSession?> GetAuthSession(byte[] token);
         bool IsAuthSessionValid(AuthSession auth);
-        bool IsAuthSessionTokenValid(AuthSession auth, string refreshToken);
+        bool IsAuthSessionTokenValid(AuthSession auth, byte[] refreshToken);
         bool isJwtTokenValid(string jwtToken);
-        byte[] HashRefreshToken(string refreshToken);
         JwtSecurityToken DecodeJwtToken(string jwtToken);
         void DecodeJwtAndPopulateUser(string token);
 

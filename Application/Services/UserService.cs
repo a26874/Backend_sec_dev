@@ -12,6 +12,7 @@ using Backend_sec_dev.Application.DTO_s.User;
 using Backend_sec_dev.Application.DTO_s.UserCreation;
 using Backend_sec_dev.Application.Interfaces;
 using Backend_sec_dev.Domain.Entities;
+using Backend_sec_dev.Domain.Enums;
 using Backend_sec_dev.Domain.Validators;
 using Backend_sec_dev.Infrastructure.Persistence;
 using Backend_sec_dev.Shared.Constants;
@@ -25,10 +26,14 @@ namespace Backend_sec_dev.Application.Services
     public class UserService : IUserService
     {
         protected readonly AppDbContext db;
+        protected readonly IHttpContextAccessor http;
+        protected readonly IDatabaseRepository databaseRepository;
 
-        public UserService(AppDbContext db)
+        public UserService(AppDbContext db, IDatabaseRepository databaseRepository, IHttpContextAccessor httpContext)
         {
             this.db = db;
+            this.databaseRepository = databaseRepository;
+            this.http = httpContext;
         }
 
         public async Task<ApiResponse<UserResultDto>> CreateUser(UserCredentialsDto userCredentialsDto)
@@ -86,7 +91,98 @@ namespace Backend_sec_dev.Application.Services
             }
         }
 
+        /// <summary>
+        /// Generates a token and saves it to the database
+        /// </summary>
+        /// <param name="email"></param>
+        /// <returns></returns>
+        public async Task<ApiResponse<string>> SendResetPasswordEmail(string email)
+        {
+            User? u = await this.databaseRepository.FirstOrDefaultAsync<User>(t => t.Email == email) ?? null;
+
+            if (u == null)
+                return ApiResponse<string>.Ok(string.Empty, HttpStatusCode.Accepted);
+
+
+            string generatedToken = Hasher.GenerateToken(TokenType.Other);
+            byte[] hashedToken = Hasher.HashToken(generatedToken);
+
+            try
+            {
+                UserSecurityToken? token = this.CreateUserSecurityToken(u, hashedToken);
+                this.databaseRepository.Add<UserSecurityToken>(token);
+                await this.databaseRepository.SaveChanges();
+
+                return ApiResponse<string>.Ok(generatedToken, HttpStatusCode.Accepted);
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<string>.Fail(HttpStatusCode.BadRequest, SqlHelpers.SqlExceptionError(ex));
+            }
+        }
+
+        /// <summary>
+        /// Resets the password
+        /// </summary>
+        /// <param name="token"></param>
+        /// <param name="newPassword"></param>
+        /// <returns></returns>
+        public async Task<ApiResponse<bool>> ResetPasswordEmail(string token, string newPassword)
+        {
+            byte[] hashedToken = Hasher.HashToken(token);
+            UserSecurityToken? secToken = await this.GetUserSecurityToken(hashedToken);
+
+            if (!NullChecks.ObjectNullOrEmpty<UserSecurityToken>(secToken!))
+            {
+
+                User? user = await this.databaseRepository.FirstOrDefaultAsync<User>(t => t.Id == secToken!.UserId);
+
+                if (!NullChecks.ObjectNullOrEmpty<User>(user!))
+                {
+                    bool isTokenValid = this.IsTokenValid(secToken!, user!.Id);
+                    if (isTokenValid)
+                    {
+                        UserCredentialsDto userCredentialsDto = new UserCredentialsDto { email = user.Email, password = newPassword };
+                        string password = Hasher.HashPassword(userCredentialsDto);
+                        user.PasswordHash = password;
+
+                        List<UserSecurityToken> userTokens = await this.databaseRepository.Where<UserSecurityToken>(t => t.UserId == user.Id && t.IsRevoked == false);
+                        secToken!.IsRevoked = true;
+                        this.RevokeUserTokens(user.Id, userTokens);
+
+                        try
+                        {
+                            this.databaseRepository.Update(user);
+                            this.databaseRepository.Update(secToken);
+                            this.databaseRepository.UpdateRange(userTokens);
+                            await this.databaseRepository.SaveChanges();
+                            return ApiResponse<bool>.Ok(true, HttpStatusCode.OK, "Palavra passe mudada com sucesso");
+                        }
+                        catch (Exception ex)
+                        {
+                            return ApiResponse<bool>.Fail(HttpStatusCode.BadRequest, SqlHelpers.SqlExceptionError(ex));
+                        }
+                    }
+                }
+            }
+            return ApiResponse<bool>.Fail(HttpStatusCode.Unauthorized, "Ocorreu um erro a mudar a password");
+        }
+
         #region User Logic
+
+        private UserSecurityToken CreateUserSecurityToken(User u, byte[] hashedToken)
+        {
+            return new UserSecurityToken
+            {
+                UserId = u.Id,
+                HashedToken = hashedToken,
+                Type = UserSecurityEnum.ResetPassword,
+                CreatedAt = DateTime.UtcNow,
+                ExpiresAt = DateTime.UtcNow.AddHours(1),
+                IsRevoked = false,
+                IpAddress = HttpContextHelper.GetClientIpAddress(http.HttpContext!) ?? "Unknown"
+            };
+        }
 
         private async Task<GetUserDatabaseResponse> VerifyIfUserExists(string userEmail)
         {
@@ -124,6 +220,7 @@ namespace Backend_sec_dev.Application.Services
 
             return ApiResponse<UserResultDto>.Ok(new UserResultDto { email = u.Email }, HttpStatusCode.Created, "Account created with success! ");
         }
+
         private string HashingPassword(UserCredentialsDto userCreationDto, User u)
         {
             return Hasher.HashPassword(userCreationDto);
@@ -158,6 +255,28 @@ namespace Backend_sec_dev.Application.Services
 
         }
 
+        private async Task<UserSecurityToken?> GetUserSecurityToken(byte[] hashedToken)
+        {
+            return await this.databaseRepository.FirstOrDefaultAsync<UserSecurityToken>(t => t.HashedToken.SequenceEqual(hashedToken));
+        }
+
+        private bool IsTokenValid(UserSecurityToken token, Guid userId)
+        {
+            string ipAddress = HttpContextHelper.GetClientIpAddress(http.HttpContext!) ?? "Unknown";
+
+            if (token.ExpiresAt < DateTime.UtcNow || token.IsRevoked || token.Type != UserSecurityEnum.ResetPassword || token.UserId != userId)
+                return false;
+            
+            return true;
+        }
+
+        private void RevokeUserTokens(Guid userId, List<UserSecurityToken> userTokens)
+        {
+            foreach (UserSecurityToken tk in userTokens)
+            {
+                tk.IsRevoked = true;
+            }
+        }
         #endregion
 
 

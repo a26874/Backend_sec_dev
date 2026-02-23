@@ -35,13 +35,29 @@ namespace Backend_sec_dev.API.Controllers
             ApiResponse<UserResultDto> res = await this.userService.CreateUser(userDto);
             return res;
         }
-        
+
         [Authorize(Roles = "Admin")]
         [Route("change_role")]
         [HttpPut]
         public async Task<ApiResponse<UserResultDto>> UpdateUserRole(UserUpdateDto userUpdateDto)
         {
             ApiResponse<UserResultDto> res = await this.userService.UpdateUserRole(userUpdateDto);
+            return res;
+        }
+
+        [Route("reset_password")]
+        [HttpPost]
+        public async Task<ApiResponse<string>> SendResetPasswordEmail([FromBody] string email)
+        {
+            ApiResponse<string> res = await this.userService.SendResetPasswordEmail(email);
+            return res;
+        }
+
+        [Route("{token}/change_password")]
+        [HttpPut]
+        public async Task<ApiResponse<bool>> ResetUserPassword(string token, [FromBody] string password)
+        {
+            ApiResponse<bool> res = await this.userService.ResetPasswordEmail(token, password);
             return res;
         }
     }

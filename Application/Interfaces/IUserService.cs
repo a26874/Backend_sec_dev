@@ -18,6 +18,8 @@ namespace Backend_sec_dev.Application.Interfaces
     {
         Task<ApiResponse<UserResultDto>> CreateUser(UserCredentialsDto user);
         Task<ApiResponse<UserResultDto>> UpdateUserRole(UserUpdateDto user);
+        Task<ApiResponse<string>> SendResetPasswordEmail(string email);
+        Task<ApiResponse<bool>> ResetPasswordEmail(string token, string newPassword);
         
     }
 }

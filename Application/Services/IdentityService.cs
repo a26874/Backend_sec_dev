@@ -14,10 +14,10 @@ using Backend_sec_dev.Domain.Entities;
 using Backend_sec_dev.Shared.Helpers;
 using Microsoft.AspNetCore.Identity;
 using System.Net;
-using System.Security.Cryptography;
 using System.IdentityModel.Tokens.Jwt;
 using Backend_sec_dev.API.Filters;
 using System.Security.Claims;
+using Backend_sec_dev.Domain.Enums;
 
 namespace Backend_sec_dev.Application.Services
 {
@@ -79,11 +79,11 @@ namespace Backend_sec_dev.Application.Services
                 return ApiResponse<RefreshTokenResult>.Fail(HttpStatusCode.Conflict, "Refresh token not provided");
 
 
-            byte[] hashedRefreshToken = HashRefreshToken(refreshToken);
+            byte[] hashedRefreshToken = Hasher.HashToken(refreshToken);
 
             AuthSession? auth = await GetAuthSession(hashedRefreshToken);
             string jwt = string.Empty;
-            string newRefreshToken = Hasher.GenerateRefreshToken();
+            string newRefreshToken = Hasher.GenerateToken(Domain.Enums.TokenType.JwtToken);
 
             try
             {
@@ -143,7 +143,7 @@ namespace Backend_sec_dev.Application.Services
                 try
                 {
                     await this.databaseRepository.SaveChanges();
-                    res = new ApiResponse<LoginResult> {Success = true, statusCode = HttpStatusCode.OK, Message = "Logout efetuado com sucesso" };
+                    res = new ApiResponse<LoginResult> { Success = true, statusCode = HttpStatusCode.OK, Message = "Logout efetuado com sucesso" };
                 }
                 catch (Exception ex)
                 {
@@ -157,7 +157,7 @@ namespace Backend_sec_dev.Application.Services
         //fix later
         public async Task<AuthSession?> GetAuthSession(byte[] hashedRefreshToken)
         {
-           return await this.databaseRepository.FirstOrDefaultAsync<AuthSession>(t => t.Hashed_Token ==  hashedRefreshToken);
+            return await this.databaseRepository.FirstOrDefaultAsync<AuthSession>(t => t.Hashed_Token.SequenceEqual(hashedRefreshToken));
         }
         /// <summary>
         /// Validates authsession
@@ -175,12 +175,11 @@ namespace Backend_sec_dev.Application.Services
         /// <param name="auth"></param>
         /// <param name="refreshToken"></param>
         /// <returns></returns>
-        public bool IsAuthSessionTokenValid(AuthSession auth, string refreshToken)
+        public bool IsAuthSessionTokenValid(AuthSession auth, byte[] hashedToken)
         {
-            byte[] hashToVerify = HashRefreshToken(refreshToken);
-            return Hasher.CompareHashes(hashToVerify, auth.Hashed_Token);
+            return Hasher.CompareHashes(hashedToken, auth.Hashed_Token);
         }
-        
+
         /// <summary>
         /// Validates a token
         /// </summary>
@@ -213,21 +212,7 @@ namespace Backend_sec_dev.Application.Services
             http.HttpContext!.User = principal;
         }
 
-        /// <summary>
-        /// hashes a base64 token
-        /// </summary>
-        /// <param name="refreshToken"></param>
-        /// <returns></returns>
-        public byte[] HashRefreshToken(string refreshToken)
-        {
-            byte[] hashedToken;
-            using (SHA256 cypher = SHA256.Create())
-            {
-                byte[] converted = Convert.FromBase64String(refreshToken);
-                hashedToken = cypher.ComputeHash(converted);
-            }
-            return hashedToken;
-        }
+
 
 
         public JwtSecurityToken DecodeJwtToken(string jwtToken)
@@ -311,8 +296,8 @@ namespace Backend_sec_dev.Application.Services
             res = TreatResultPassword(result, res);
             try
             {
-                string ipAddress = this.GetIpAddress();
-                Guid sessionId = this.GetSessionId();
+                string ipAddress = HttpContextHelper.GetClientIpAddress(http.HttpContext!);
+                Guid sessionId = HttpContextHelper.GetClientSessionId(http.HttpContext!);
                 u.LastLoginTime = DateTime.UtcNow;
                 this.databaseRepository.Update(u);
 
@@ -400,7 +385,7 @@ namespace Backend_sec_dev.Application.Services
 
         private string GenerateJwtTokenAux(User u, ApiResponse<LoginResult> res)
         {
-            string refreshToken = Hasher.GenerateRefreshToken();
+            string refreshToken = Hasher.GenerateToken(TokenType.JwtToken);
 
             return refreshToken;
         }
@@ -429,65 +414,16 @@ namespace Backend_sec_dev.Application.Services
         /// <returns></returns>
         private AuthSession CreateAuthSession(Guid userId, string refreshToken)
         {
-            string ipAddress = GetIpAddress();
-            string userAgent = GetUserAgentHeader();
+            string ipAddress = HttpContextHelper.GetClientIpAddress(http.HttpContext!);
+            string userAgent = HttpContextHelper.GetUserAgent(http.HttpContext!);
             AuthSession authSession = new AuthSession();
             authSession.UserId = userId;
             authSession.IpAddress = ipAddress;
             authSession.UserAgent = userAgent;
-            byte[] data = HashRefreshToken(refreshToken);
+            byte[] data = Hasher.HashToken(refreshToken);
 
             authSession.Hashed_Token = data;
             return authSession;
-        }
-
-        /// <summary>
-        /// Cyper refresh tokens
-        /// </summary>
-        /// <param name="refreshToken"></param>
-        /// <returns></returns>
-
-
-        /// <summary>
-        /// Get ipaddress
-        /// </summary>
-        /// <returns></returns>
-        private string GetIpAddress()
-        {
-            string ipAddress = string.Empty;
-            if (http != null && http.HttpContext != null && http.HttpContext.Connection != null && http.HttpContext.Connection.RemoteIpAddress != null)
-            {
-                ipAddress = http.HttpContext.Connection.RemoteIpAddress.ToString();
-            }
-            return ipAddress;
-        }
-
-        /// <summary>
-        /// We obtain the agent header
-        /// </summary>
-        /// <returns></returns>
-        public string GetUserAgentHeader()
-        {
-            string userAgent = string.Empty;
-            if (http != null && http.HttpContext != null && http.HttpContext.Connection != null && http.HttpContext.Connection.RemoteIpAddress != null)
-            {
-                userAgent = http.HttpContext.Request.Headers.UserAgent.ToString();
-            }
-            return userAgent;
-        }
-
-        /// <summary>
-        /// We obtained the session id
-        /// </summary>
-        /// <returns></returns>
-        public Guid GetSessionId()
-        {
-            Guid guidToReturn = Guid.Empty;
-            if (http != null && http.HttpContext != null && http.HttpContext.Request != null && http.HttpContext.Request.Cookies != null && http.HttpContext.Request.Cookies.Count > 0 && http.HttpContext.Request.Cookies["Session-Id"] != null)
-            {
-                guidToReturn = new Guid(http.HttpContext.Request.Cookies["Session-Id"] ?? "");
-            }
-            return guidToReturn;
         }
 
         /// <summary>

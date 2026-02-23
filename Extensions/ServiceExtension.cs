@@ -48,9 +48,9 @@ namespace Backend_sec_dev.Extensions
             services.AddRateLimiter(options =>
             {
                 ///Testing without global
-                //options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
+                //options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(http =>
                 //    RateLimitPartition.GetFixedWindowLimiter(
-                //        partitionKey: httpContext.User.Identity?.Name ?? httpContext.Request.Headers.Host.ToString(),
+                //        partitionKey: http.User.Identity?.Name ?? http.Request.Headers.Host.ToString(),
                 //        factory: partition => new FixedWindowRateLimiterOptions
                 //        {
                 //            AutoReplenishment = true,

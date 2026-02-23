@@ -35,6 +35,11 @@ Implementing the FluentValidation library is also something simple, we just have
 For GlobalExceptionHandling i saw this video: https://www.youtube.com/watch?v=rXdsm9R5TR0
 Which explained well what a globalexceptionhandler has to do, this also prevents the next step which is the leak of sensitive information.
 
+To implement a resetpassword i created a new table which now can be used for other operations as well like email confirmation, password resetting, email changing, for this phase i only created to user password reset.
+I came to the conclusion that having a table with the userId, hashedToken, ipaddress, revokedstatus, expirationdates.
+I think it can be better, but for now it will remain like this.
+
+
 ###
 ## Roadmap
 

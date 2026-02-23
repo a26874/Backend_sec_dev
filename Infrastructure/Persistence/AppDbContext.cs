@@ -20,6 +20,7 @@ public class AppDbContext : DbContext
     public DbSet<AuthSession> AuthSessions => Set<AuthSession>();
     public DbSet<Transaction> Transactions => Set<Transaction>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<UserSecurityToken> UserSecurityTokens => Set<UserSecurityToken>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

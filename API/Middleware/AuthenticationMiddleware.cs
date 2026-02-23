@@ -112,14 +112,14 @@ namespace Backend_sec_dev.API.Middleware
             if (NullChecks.StringNullOrEmpty(refreshToken)) return false;
 
 
-            byte[] Hashed = identityService.HashRefreshToken(refreshToken);
+            byte[] Hashed = Hasher.HashToken(refreshToken);
             AuthSession? auth = await identityService.GetAuthSession(Hashed);
 
 
             if (NullChecks.ObjectNullOrEmpty<AuthSession>(auth!)) return false;
 
 
-            return identityService.IsAuthSessionValid(auth!) && identityService.IsAuthSessionTokenValid(auth!, refreshToken);
+            return identityService.IsAuthSessionValid(auth!) && identityService.IsAuthSessionTokenValid(auth!, Hashed);
         }
         #endregion
 

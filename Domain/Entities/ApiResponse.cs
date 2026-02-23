@@ -7,7 +7,6 @@
 *	<description></description>
 **/
 
-using Backend_sec_dev.Application.DTO_s.User;
 using System.Net;
 using System.Text.Json.Serialization;
 
@@ -15,7 +14,7 @@ namespace Backend_sec_dev.Domain.Entities
 {
     public class ApiResponse<T>
     {
-        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
         public T? Data { get; init; }
 
         public bool Success { get; init; }
