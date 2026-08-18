@@ -28,6 +28,7 @@ namespace Backend_sec_dev.API.Controllers
         }
 
         [Route("login")]
+        [IgnoreAntiforgeryToken]
         [HttpPost]
         public async Task<ApiResponse<LoginResult>> Login(UserCredentialsDto userCredentialsDto)
         {

@@ -18,6 +18,7 @@ using System.IdentityModel.Tokens.Jwt;
 using Backend_sec_dev.API.Filters;
 using System.Security.Claims;
 using Backend_sec_dev.Domain.Enums;
+using Microsoft.AspNetCore.Antiforgery;
 
 namespace Backend_sec_dev.Application.Services
 {
@@ -235,9 +236,19 @@ namespace Backend_sec_dev.Application.Services
             co.SameSite = SameSiteMode.Strict;
             co.Expires = DateTime.UtcNow.AddMinutes(5);
             co.Secure = true;
-            foreach (KeyValuePair<string, string> cookie in keyCookies)
+            if (http?.HttpContext != null)
             {
-                CreateCookies(cookie.Key, cookie.Value, co);
+                IAntiforgery antiForgery = http.HttpContext.RequestServices.GetRequiredService<IAntiforgery>();
+
+                AntiforgeryTokenSet tokens = antiForgery.GetAndStoreTokens(http.HttpContext);
+                if (http?.HttpContext.Response != null && http?.HttpContext.Response.Headers != null)
+                {
+                    http.HttpContext.Response.Headers.Append("X-CSRF-TOKEN", tokens.RequestToken);
+                }
+                foreach (KeyValuePair<string, string> cookie in keyCookies)
+                {
+                    CreateCookies(cookie.Key, cookie.Value, co);
+                }
             }
         }
 
@@ -311,8 +322,8 @@ namespace Backend_sec_dev.Application.Services
 
                 userAuthSession = this.AuthSessionLogic(userAuthSession, u, refreshToken, res);
 
-                CreateCookiesAux(jwtToken, refreshToken, userAuthSession!.SessionId);
                 DecodeJwtAndPopulateUser(jwtToken);
+                CreateCookiesAux(jwtToken, refreshToken, userAuthSession!.SessionId);
 
                 await this.databaseRepository.SaveChanges();
             }

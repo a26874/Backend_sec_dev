@@ -39,6 +39,10 @@ To implement a resetpassword i created a new table which now can be used for oth
 I came to the conclusion that having a table with the userId, hashedToken, ipaddress, revokedstatus, expirationdates.
 I think it can be better, but for now it will remain like this.
 
+The implementation of CSRF token, was kinda simple. One mistake i made was generating the csrf token before i populated the httpcontext user, so it would fail to validate the token.
+
+
+### Phase 7
 
 ###
 ## Roadmap

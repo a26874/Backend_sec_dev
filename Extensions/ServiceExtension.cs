@@ -11,6 +11,7 @@ using Backend_sec_dev.API.Filters;
 using Backend_sec_dev.Application.Interfaces;
 using Backend_sec_dev.Application.Services;
 using Backend_sec_dev.Shared.Constants;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using System.Threading.RateLimiting;
@@ -35,6 +36,14 @@ namespace Backend_sec_dev.Extensions
             services.AddScoped<ITransactionService, TransactionService>();
             services.AddScoped<IOwnershipService, OwnershipService>();
             services.AddScoped<OwnershipFilter>();
+            services.AddAntiforgery(options =>
+            {
+                options.HeaderName = "X-CSRF-TOKEN";
+            });
+            services.AddControllersWithViews(options =>
+            {
+                options.Filters.Add(typeof(AutoValidateAntiforgeryTokenAttribute));
+            });
             AddRateLimiter(services);
             return services;
         }
