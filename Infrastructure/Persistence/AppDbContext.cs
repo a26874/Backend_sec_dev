@@ -16,11 +16,12 @@ public class AppDbContext : DbContext
     public AppDbContext(DbContextOptions<AppDbContext> options)
         : base(options) { }
 
-    public DbSet<User> Users => Set<User>();
+    public DbSet<User> User => Set<User>();
     public DbSet<AuthSession> AuthSessions => Set<AuthSession>();
     public DbSet<Transaction> Transactions => Set<Transaction>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<UserSecurityToken> UserSecurityTokens => Set<UserSecurityToken>();
+    public DbSet<Customers> Customers => Set<Customers>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

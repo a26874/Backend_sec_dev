@@ -81,7 +81,7 @@ namespace Backend_sec_dev.Application.Services
             try
             {
                 u.Role = userUpdateDto.newRole;
-                this.db.Users.Update(u);
+                this.db.User.Update(u);
                 await this.db.SaveChangesAsync();
                 return ApiResponse<UserResultDto>.Ok(new UserResultDto { email = userUpdateDto.email, success = true }, HttpStatusCode.OK);
             }
@@ -187,7 +187,7 @@ namespace Backend_sec_dev.Application.Services
         private async Task<GetUserDatabaseResponse> VerifyIfUserExists(string userEmail)
         {
             GetUserDatabaseResponse res = new GetUserDatabaseResponse();
-            User? existingUser = await this.db.Users.FirstOrDefaultAsync(t => t.Email == userEmail);
+            User? existingUser = await this.db.User.FirstOrDefaultAsync(t => t.Email == userEmail);
 
             if (existingUser != null)
             {
@@ -215,7 +215,7 @@ namespace Backend_sec_dev.Application.Services
 
         private async Task<ApiResponse<UserResultDto>> SaveChangesUser(User u)
         {
-            this.db.Users.Add(u);
+            this.db.User.Add(u);
             var result = await this.db.SaveChangesAsync();
 
             return ApiResponse<UserResultDto>.Ok(new UserResultDto { email = u.Email }, HttpStatusCode.Created, "Account created with success! ");
@@ -266,7 +266,7 @@ namespace Backend_sec_dev.Application.Services
 
             if (token.ExpiresAt < DateTime.UtcNow || token.IsRevoked || token.Type != UserSecurityEnum.ResetPassword || token.UserId != userId)
                 return false;
-            
+
             return true;
         }
 

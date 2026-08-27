@@ -80,7 +80,10 @@ namespace Backend_sec_dev.API.Middleware
             bool isLogin = trimmedPath.StartsWith("identity/login");
             bool isLogout = trimmedPath.StartsWith("identity/logout");
             bool isRefreshToken = trimmedPath.StartsWith("identity/refreshToken");
-            return isLogin || isLogout || isRefreshToken;
+
+            //Temp so i dont have to do "login" all the time
+            bool isNewPerformanceEndpoint = trimmedPath.StartsWith("performance");
+            return isLogin || isLogout || isRefreshToken || isNewPerformanceEndpoint;
         }
 
         /// <summary>

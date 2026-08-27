@@ -7,7 +7,7 @@
 *	<description></description>
 **/
 
-using Microsoft.AspNetCore.Mvc;
+using Backend_sec_dev.Domain.Entities;
 
 namespace Backend_sec_dev.API.Middleware
 {
@@ -34,13 +34,15 @@ namespace Backend_sec_dev.API.Middleware
                         break;
                 }
 
-                string detailDescription = env.IsDevelopment() ? ex.Message : "Unhandled error occured";  
+                string detailDescription = env.IsDevelopment() ? ex.Message : "Unhandled error occured";
                 await context.Response.WriteAsJsonAsync(
-                    new ProblemDetails
+                    new GlobalExceptionMiddlewareError
                     {
                         Type = ex.GetType().Name,
                         Title = "Unhandled error occured",
                         Detail = detailDescription,
+                        //rework this and throw the errors in a more structured way
+                        StackTrace = ex.StackTrace
                     }
                 );
             }

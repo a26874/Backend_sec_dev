@@ -9,6 +9,7 @@
 
 using Backend_sec_dev.Application.Interfaces;
 using Backend_sec_dev.Infrastructure.Persistence;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using System.Linq.Expressions;
 
@@ -23,9 +24,48 @@ namespace Backend_sec_dev.Application.Services
             this.db = db;
         }
 
+        public void CommitTransaction()
+        {
+            this.db.Database.CommitTransaction();
+        }
+
+        public void RollbackTransaction()
+        {
+            this.db.Database.RollbackTransaction();
+        }
+
+        public string? GetConnectionString()
+        {
+            return this.db.Database.GetConnectionString();
+        }
+
+        public SqlConnection? GetSqlConnection()
+        {
+            return this.db.Database.GetDbConnection() as SqlConnection;
+        }
+
+        public SqlTransaction? CreateSqlTransaction()
+        {
+            SqlConnection? connection = this.db.Database.GetDbConnection() as SqlConnection;
+            if (connection == null)
+            {
+                return null;
+            }
+            if (connection.State != System.Data.ConnectionState.Open)
+            {
+                connection.Open();
+            }
+            return connection.BeginTransaction();
+        }
+
         public void Add<T>(T entity) where T : class
         {
             this.db.Add(entity);
+        }
+
+        public void AddRange<T>(List<T> entities) where T : class
+        {
+            this.db.AddRange(entities);
         }
 
         public void Delete<T>(T entity) where T : class
@@ -40,6 +80,16 @@ namespace Backend_sec_dev.Application.Services
         public void UpdateRange<T>(List<T> entities) where T : class
         {
             this.db.UpdateRange(entities);
+        }
+
+        public void ExecuteRawSql(string sql, params object[] parameters)
+        {
+            this.db.Database.ExecuteSqlRaw(sql, parameters);
+        }
+
+        public void ClearChangeTracker()
+        {
+            this.db.ChangeTracker.Clear();
         }
 
         public async Task<T?> GetById<T>(Guid id) where T : class
@@ -57,7 +107,6 @@ namespace Backend_sec_dev.Application.Services
             return await this.db.Set<T>().Where(expression).ToListAsync();
         }
 
-
         public async Task<int> SaveChanges()
         {
             return await this.db.SaveChangesAsync();
@@ -67,7 +116,5 @@ namespace Backend_sec_dev.Application.Services
         {
             return await this.db.Set<T>().FirstOrDefaultAsync(expression);
         }
-
-
     }
 }
