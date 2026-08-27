@@ -35,6 +35,7 @@ namespace Backend_sec_dev.Extensions
             services.AddScoped<IIdentityService, IdentityService>();
             services.AddScoped<ITransactionService, TransactionService>();
             services.AddScoped<IOwnershipService, OwnershipService>();
+            services.AddScoped<IPerformanceService, PerformanceService>();
             services.AddScoped<OwnershipFilter>();
             services.AddAntiforgery(options =>
             {
@@ -71,7 +72,7 @@ namespace Backend_sec_dev.Extensions
                 options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
                 ///For each type of role we add different limits
                 ///For admin we will allow "unlimited" requests and the old ones are always first
-                options.AddFixedWindowLimiter(RolesConstants.Admin,options =>
+                options.AddFixedWindowLimiter(RolesConstants.Admin, options =>
                 {
                     options.PermitLimit = 9999;
                     options.Window = TimeSpan.FromMinutes(15);
@@ -97,7 +98,7 @@ namespace Backend_sec_dev.Extensions
                 });
 
             });
-            
+
         }
     }
 }

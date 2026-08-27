@@ -20,6 +20,9 @@ namespace Backend_sec_dev.Domain.Entities
         public bool IsLocked { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime? LastLoginTime { get; set; }
+
+        //NavProperties
+        public List<Customers> customers { get; set; }
         #endregion
 
         #region COMPORTAMENTO
